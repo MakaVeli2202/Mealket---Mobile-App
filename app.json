@@ -4,13 +4,8 @@
     "slug": "mealket",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.jpg",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/icon.jpg",
-      "resizeMode": "contain",
-      "backgroundColor": "#0D0D0D"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mealket.app",
@@ -21,11 +16,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.jpg",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0D0D"
       },
       "package": "com.mealket.app",
-      "minSdkVersion": 26,
       "permissions": [
         "android.permission.CAMERA"
       ],
@@ -49,6 +43,14 @@
         "expo-camera",
         {
           "cameraPermission": "Allow Mealket to use your camera to scan food labels and barcodes."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
         }
       ]
     ],
