@@ -7,38 +7,102 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
 
+// ─── Meal metadata ────────────────────────────────────────────────────────────
 const MEAL_META = {
-  breakfast: { label: 'Breakfast',   icon: 'sunny-outline',      color: '#FF9F0A' },
-  lunch:     { label: 'Lunch',       icon: 'restaurant-outline', color: '#0A84FF' },
-  dinner:    { label: 'Dinner',      icon: 'moon-outline',       color: '#BF5AF2' },
-  snack:     { label: 'Snacks',      icon: 'apple-outline',      color: '#00C896' },
+  breakfast: { label: 'Breakfast',   labelDe: 'Frühstück',   icon: 'sunny-outline',      color: '#FF9F0A' },
+  lunch:     { label: 'Lunch',       labelDe: 'Mittagessen', icon: 'restaurant-outline', color: '#0A84FF' },
+  dinner:    { label: 'Dinner',      labelDe: 'Abendessen',  icon: 'moon-outline',       color: '#BF5AF2' },
+  snack:     { label: 'Snacks',      labelDe: 'Snacks',      icon: 'apple-outline',      color: '#00C896' },
 };
+const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
-const MEAL_META_DE = {
-  breakfast: { label: 'Frühstück',   icon: 'sunny-outline',      color: '#FF9F0A' },
-  lunch:     { label: 'Mittagessen', icon: 'restaurant-outline', color: '#0A84FF' },
-  dinner:    { label: 'Abendessen',  icon: 'moon-outline',       color: '#BF5AF2' },
-  snack:     { label: 'Snacks',      icon: 'apple-outline',      color: '#00C896' },
-};
+// ─── Circular donut for macros ────────────────────────────────────────────────
+function MacroDonut({ carbs, protein, fat, size = 110, theme }) {
+  const total = carbs + protein + fat || 1;
+  const cPct = carbs   / total;
+  const pPct = protein / total;
 
-function MacroBar({ label, eaten, goal, color, theme }) {
-  const pct = goal > 0 ? Math.min(eaten / goal, 1) : 0;
-  const isOver = eaten > goal;
+  // Draw three arcs using border tricks
+  const BORDER = 10;
+  const carbDeg    = cPct * 360;
+  const proteinDeg = pPct * 360;
+
   return (
-    <View style={styles.macroBarWrap}>
-      <View style={styles.macroBarTop}>
-        <Text style={[styles.macroName, { color: theme.text }]}>{label}</Text>
-        <Text style={[styles.macroVal, { color: isOver ? theme.danger : theme.textMuted }]}>
-          {Math.round(eaten)}g / {Math.round(goal)}g
-        </Text>
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Background track */}
+      <View style={{
+        position: 'absolute', width: size, height: size, borderRadius: size / 2,
+        borderWidth: BORDER, borderColor: theme.fat,
+      }} />
+      {/* Carbs arc (starts at top) */}
+      <View style={{ position: 'absolute', right: 0, width: size / 2, height: size, overflow: 'hidden' }}>
+        <View style={{
+          width: size, height: size, borderRadius: size / 2,
+          borderWidth: BORDER, borderColor: carbDeg > 0 ? theme.carbs : 'transparent',
+          transform: [{ rotate: `${Math.min(carbDeg, 180) - 180}deg` }],
+        }} />
       </View>
-      <View style={[styles.macroTrack, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' }]}>
-        <View style={[styles.macroFill, { width: `${pct * 100}%`, backgroundColor: isOver ? theme.danger : color }]} />
+      {carbDeg > 180 && (
+        <View style={{ position: 'absolute', left: 0, width: size / 2, height: size, overflow: 'hidden' }}>
+          <View style={{
+            position: 'absolute', left: 0, width: size, height: size, borderRadius: size / 2,
+            borderWidth: BORDER, borderColor: theme.carbs,
+            transform: [{ rotate: `${carbDeg - 360}deg` }],
+          }} />
+        </View>
+      )}
+      {/* Center */}
+      <View style={{ alignItems: 'center' }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: theme.text }}>{Math.round(total)}g</Text>
+        <Text style={{ fontSize: 9, color: theme.textMuted, fontWeight: '600' }}>total</Text>
       </View>
     </View>
   );
 }
 
+// ─── Macro stat pill ──────────────────────────────────────────────────────────
+function MacroPill({ label, grams, goalG, color, theme }) {
+  const pct = goalG > 0 ? Math.min(grams / goalG, 1) : 0;
+  const isOver = grams > goalG && goalG > 0;
+  return (
+    <View style={styles.macroPill}>
+      <View style={[styles.macroPillDot, { backgroundColor: color }]} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.macroPillTop}>
+          <Text style={[styles.macroPillLabel, { color: theme.textMuted }]}>{label}</Text>
+          <Text style={[styles.macroPillVal, { color: isOver ? theme.danger : theme.text }]}>
+            {Math.round(grams)}g
+          </Text>
+        </View>
+        <View style={[styles.macroTrack, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' }]}>
+          <View style={[styles.macroFill, { width: `${pct * 100}%`, backgroundColor: isOver ? theme.danger : color }]} />
+        </View>
+        {goalG > 0 && (
+          <Text style={[styles.macroPillGoal, { color: theme.textMuted }]}>
+            goal {Math.round(goalG)}g
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ─── Nutrition detail row ─────────────────────────────────────────────────────
+function NutritionRow({ icon, label, value, unit, color, theme, last }) {
+  return (
+    <View style={[styles.nutriRow, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
+      <View style={[styles.nutriIcon, { backgroundColor: color + '22' }]}>
+        <Ionicons name={icon} size={16} color={color} />
+      </View>
+      <Text style={[styles.nutriLabel, { color: theme.textMuted }]}>{label}</Text>
+      <Text style={[styles.nutriValue, { color: theme.text }]}>
+        {value}<Text style={{ color: theme.textMuted, fontSize: 12 }}> {unit}</Text>
+      </Text>
+    </View>
+  );
+}
+
+// ─── Food entry row ───────────────────────────────────────────────────────────
 function FoodEntry({ entry, theme, onDelete }) {
   return (
     <TouchableOpacity
@@ -49,10 +113,10 @@ function FoodEntry({ entry, theme, onDelete }) {
       <View style={styles.foodLeft}>
         <Text style={[styles.foodName, { color: theme.text }]} numberOfLines={1}>{entry.name}</Text>
         <Text style={[styles.foodMeta, { color: theme.textMuted }]}>
-          {entry.amountG}g
-          {entry.carbsG > 0   ? `  C ${entry.carbsG}g`   : ''}
-          {entry.proteinG > 0 ? `  P ${entry.proteinG}g` : ''}
-          {entry.fatG > 0     ? `  F ${entry.fatG}g`     : ''}
+          {entry.amountG ? `${entry.amountG}g` : ''}
+          {entry.carbsG   > 0 ? `  C ${Math.round(entry.carbsG)}g`   : ''}
+          {entry.proteinG > 0 ? `  P ${Math.round(entry.proteinG)}g` : ''}
+          {entry.fatG     > 0 ? `  F ${Math.round(entry.fatG)}g`     : ''}
         </Text>
       </View>
       <View style={styles.foodRight}>
@@ -63,19 +127,23 @@ function FoodEntry({ entry, theme, onDelete }) {
   );
 }
 
-function MealSection({ mealKey, entries, theme, calorieGoal, pct, language, onDelete, navigation }) {
-  const meta = (language === 'de' ? MEAL_META_DE : MEAL_META)[mealKey] || MEAL_META[mealKey];
+// ─── Meal section (no fixed goal — shows actual eaten) ────────────────────────
+function MealSection({ mealKey, entries, theme, language, onDelete, navigation }) {
+  const meta = MEAL_META[mealKey];
+  const label = language === 'de' ? meta.labelDe : meta.label;
   const total = entries.reduce((s, e) => s + (e.calories || 0), 0);
-  const goal = Math.round(calorieGoal * pct);
 
+  // Always show section (even if empty) — user can add to any meal
   return (
     <View style={[styles.mealSection, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.mealHeader}>
         <View style={[styles.mealIconWrap, { backgroundColor: meta.color + '22' }]}>
           <Ionicons name={meta.icon} size={18} color={meta.color} />
         </View>
-        <Text style={[styles.mealLabel, { color: theme.text }]}>{meta.label}</Text>
-        <Text style={[styles.mealKcal, { color: theme.textMuted }]}>{total} / {goal} kcal</Text>
+        <Text style={[styles.mealLabel, { color: theme.text }]}>{label}</Text>
+        {total > 0 && (
+          <Text style={[styles.mealKcal, { color: theme.textMuted }]}>{total} kcal</Text>
+        )}
         <TouchableOpacity
           style={[styles.mealAddBtn, { backgroundColor: theme.accentLight }]}
           onPress={() => navigation.navigate('AddFood', { meal: mealKey })}
@@ -86,7 +154,9 @@ function MealSection({ mealKey, entries, theme, calorieGoal, pct, language, onDe
       </View>
 
       {entries.length === 0 ? (
-        <Text style={[styles.emptyMeal, { color: theme.textMuted }]}>Nothing logged yet</Text>
+        <Text style={[styles.emptyMeal, { color: theme.textMuted }]}>
+          {language === 'de' ? 'Noch nichts eingetragen' : 'Nothing logged yet'}
+        </Text>
       ) : (
         entries.map((e) => (
           <FoodEntry
@@ -94,11 +164,11 @@ function MealSection({ mealKey, entries, theme, calorieGoal, pct, language, onDe
             entry={e}
             theme={theme}
             onDelete={() => Alert.alert(
-              'Remove entry',
-              `Remove "${e.name}"?`,
+              language === 'de' ? 'Eintrag löschen' : 'Remove entry',
+              `"${e.name}" ${language === 'de' ? 'entfernen?' : 'remove?'}`,
               [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Remove', style: 'destructive', onPress: () => onDelete(e.id) },
+                { text: language === 'de' ? 'Abbrechen' : 'Cancel', style: 'cancel' },
+                { text: language === 'de' ? 'Löschen' : 'Remove', style: 'destructive', onPress: () => onDelete(e.id) },
               ],
             )}
           />
@@ -108,6 +178,7 @@ function MealSection({ mealKey, entries, theme, calorieGoal, pct, language, onDe
   );
 }
 
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function DayDetailScreen({ navigation }) {
   const { theme, calorieGoal, language } = useSettings();
   const { todayEntries, todayByMeal, removeEntry } = useCalories();
@@ -116,7 +187,9 @@ export default function DayDetailScreen({ navigation }) {
   const totalCarbs   = useMemo(() => todayEntries.reduce((s, e) => s + (e.carbsG    || 0), 0), [todayEntries]);
   const totalProtein = useMemo(() => todayEntries.reduce((s, e) => s + (e.proteinG  || 0), 0), [todayEntries]);
   const totalFat     = useMemo(() => todayEntries.reduce((s, e) => s + (e.fatG      || 0), 0), [todayEntries]);
+  const totalSugar   = useMemo(() => todayEntries.reduce((s, e) => s + (e.sugarG    || 0), 0), [todayEntries]);
 
+  // Standard macro goals (50/20/30 split)
   const carbGoal    = Math.round(calorieGoal * 0.50 / 4);
   const proteinGoal = Math.round(calorieGoal * 0.20 / 4);
   const fatGoal     = Math.round(calorieGoal * 0.30 / 9);
@@ -124,85 +197,184 @@ export default function DayDetailScreen({ navigation }) {
   const remaining = Math.max(0, calorieGoal - totalKcal);
   const isOver = totalKcal > calorieGoal;
 
+  // Macro % of calories
+  const carbKcal    = totalCarbs   * 4;
+  const proteinKcal = totalProtein * 4;
+  const fatKcal     = totalFat     * 9;
+  const macroTotal  = carbKcal + proteinKcal + fatKcal || 1;
+  const carbPct     = Math.round(carbKcal    / macroTotal * 100);
+  const proteinPct  = Math.round(proteinKcal / macroTotal * 100);
+  const fatPct      = Math.round(fatKcal     / macroTotal * 100);
+
   const todayLabel = new Date().toLocaleDateString(
     language === 'de' ? 'de-AT' : 'en-US',
     { weekday: 'long', day: 'numeric', month: 'long' },
   );
 
-  const MEAL_PCTS = { breakfast: 0.25, lunch: 0.35, dinner: 0.30, snack: 0.10 };
+  const de = language === 'de';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Today</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{de ? 'Heute' : 'Today'}</Text>
           <Text style={[styles.headerSub, { color: theme.textMuted }]}>{todayLabel}</Text>
         </View>
         <View style={{ width: 42 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
 
-        {/* Calorie summary */}
-        <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryNum, { color: theme.text }]}>{totalKcal}</Text>
-              <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>EATEN</Text>
+        {/* ── Calorie summary ── */}
+        <View style={[styles.card, { marginTop: 16, backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.calorieRow}>
+            {/* Left: Eaten */}
+            <View style={styles.calorieCol}>
+              <Text style={[styles.calorieNum, { color: theme.text }]}>{totalKcal}</Text>
+              <Text style={[styles.calorieLabel, { color: theme.textMuted }]}>
+                {de ? 'Gegessen' : 'Eaten'}
+              </Text>
             </View>
 
-            <View style={styles.summaryCenter}>
-              <View style={[styles.kcalRing, { borderColor: isOver ? theme.danger : theme.accent }]}>
-                <Text style={[styles.kcalRingNum, { color: isOver ? theme.danger : theme.text }]}>
+            {/* Center: Ring */}
+            <View style={styles.ringCenter}>
+              <View style={[styles.calorieRing, { borderColor: isOver ? theme.danger : theme.accent }]}>
+                <Text style={[styles.ringNum, { color: isOver ? theme.danger : theme.text }]}>
                   {isOver ? totalKcal - calorieGoal : remaining}
                 </Text>
-                <Text style={[styles.kcalRingLabel, { color: theme.textMuted }]}>
-                  {isOver ? 'over' : 'left'}
+                <Text style={[styles.ringLabel, { color: theme.textMuted }]}>
+                  {isOver ? (de ? 'über' : 'over') : (de ? 'übrig' : 'left')}
                 </Text>
               </View>
             </View>
 
-            <View style={[styles.summaryItem, { alignItems: 'flex-end' }]}>
-              <Text style={[styles.summaryNum, { color: theme.text }]}>{calorieGoal}</Text>
-              <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>GOAL</Text>
+            {/* Right: Goal */}
+            <View style={[styles.calorieCol, { alignItems: 'flex-end' }]}>
+              <Text style={[styles.calorieNum, { color: theme.text }]}>{calorieGoal}</Text>
+              <Text style={[styles.calorieLabel, { color: theme.textMuted }]}>
+                {de ? 'Ziel' : 'Goal'}
+              </Text>
             </View>
           </View>
 
           {/* Progress bar */}
-          <View style={[styles.calorieTrack, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' }]}>
-            <View style={[
-              styles.calorieFill,
-              {
-                width: `${Math.min((totalKcal / calorieGoal) * 100, 100)}%`,
-                backgroundColor: isOver ? theme.danger : theme.accent,
-              },
-            ]} />
+          <View style={[styles.progressTrack, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' }]}>
+            <View style={[styles.progressFill, {
+              width: `${Math.min((totalKcal / calorieGoal) * 100, 100)}%`,
+              backgroundColor: isOver ? theme.danger : theme.accent,
+            }]} />
           </View>
         </View>
 
-        {/* Macros */}
-        <View style={[styles.macroCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Macros</Text>
-          <MacroBar label="Carbs"   eaten={totalCarbs}   goal={carbGoal}    color={theme.carbs}   theme={theme} />
-          <MacroBar label="Protein" eaten={totalProtein} goal={proteinGoal} color={theme.protein} theme={theme} />
-          <MacroBar label="Fat"     eaten={totalFat}     goal={fatGoal}     color={theme.fat}     theme={theme} />
+        {/* ── Macros ── */}
+        <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
+          {de ? 'MAKRONÄHRSTOFFE' : 'MACROS'}
+        </Text>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {/* Donut + stats row */}
+          <View style={styles.macroTopRow}>
+            <MacroDonut
+              carbs={totalCarbs}
+              protein={totalProtein}
+              fat={totalFat}
+              size={100}
+              theme={theme}
+            />
+            <View style={styles.macroPctCol}>
+              <View style={styles.macroPctRow}>
+                <View style={[styles.macroPctDot, { backgroundColor: theme.carbs }]} />
+                <Text style={[styles.macroPctLabel, { color: theme.textMuted }]}>
+                  {de ? 'Kohlenhydrate' : 'Carbs'}
+                </Text>
+                <Text style={[styles.macroPctNum, { color: theme.text }]}>{carbPct}%</Text>
+              </View>
+              <View style={styles.macroPctRow}>
+                <View style={[styles.macroPctDot, { backgroundColor: theme.protein }]} />
+                <Text style={[styles.macroPctLabel, { color: theme.textMuted }]}>
+                  {de ? 'Eiweiß' : 'Protein'}
+                </Text>
+                <Text style={[styles.macroPctNum, { color: theme.text }]}>{proteinPct}%</Text>
+              </View>
+              <View style={styles.macroPctRow}>
+                <View style={[styles.macroPctDot, { backgroundColor: theme.fat }]} />
+                <Text style={[styles.macroPctLabel, { color: theme.textMuted }]}>
+                  {de ? 'Fett' : 'Fat'}
+                </Text>
+                <Text style={[styles.macroPctNum, { color: theme.text }]}>{fatPct}%</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          {/* Macro bars with goals */}
+          <MacroPill label={de ? 'Kohlenhydrate' : 'Carbs'}   grams={totalCarbs}   goalG={carbGoal}    color={theme.carbs}   theme={theme} />
+          <MacroPill label={de ? 'Eiweiß' : 'Protein'}        grams={totalProtein} goalG={proteinGoal} color={theme.protein} theme={theme} />
+          <MacroPill label={de ? 'Fett' : 'Fat'}              grams={totalFat}     goalG={fatGoal}     color={theme.fat}     theme={theme} />
         </View>
 
-        {/* Meal sections */}
-        <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>MEALS</Text>
+        {/* ── Nutrition details ── */}
+        <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
+          {de ? 'NÄHRWERTDETAILS' : 'NUTRITION DETAILS'}
+        </Text>
+        <View style={[styles.card, { padding: 0, backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <NutritionRow
+            icon="flash-outline"
+            label={de ? 'Kalorien' : 'Calories'}
+            value={totalKcal}
+            unit="kcal"
+            color={theme.accent}
+            theme={theme}
+          />
+          <NutritionRow
+            icon="grid-outline"
+            label={de ? 'Kohlenhydrate' : 'Carbohydrates'}
+            value={`${Math.round(totalCarbs)}`}
+            unit="g"
+            color={theme.carbs}
+            theme={theme}
+          />
+          <NutritionRow
+            icon="ellipse-outline"
+            label={de ? 'davon Zucker' : 'of which Sugar'}
+            value={`${Math.round(totalSugar)}`}
+            unit="g"
+            color={theme.sugar}
+            theme={theme}
+          />
+          <NutritionRow
+            icon="fitness-outline"
+            label={de ? 'Eiweiß' : 'Protein'}
+            value={`${Math.round(totalProtein)}`}
+            unit="g"
+            color={theme.protein}
+            theme={theme}
+          />
+          <NutritionRow
+            icon="water-outline"
+            label={de ? 'Fett' : 'Fat'}
+            value={`${Math.round(totalFat)}`}
+            unit="g"
+            color={theme.fat}
+            theme={theme}
+            last
+          />
+        </View>
 
-        {['breakfast', 'lunch', 'dinner', 'snack'].map((meal) => (
+        {/* ── Meals ── */}
+        <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
+          {de ? 'MAHLZEITEN' : 'MEALS'}
+        </Text>
+        {MEAL_ORDER.map((meal) => (
           <MealSection
             key={meal}
             mealKey={meal}
             entries={todayByMeal[meal] || []}
             theme={theme}
-            calorieGoal={calorieGoal}
-            pct={MEAL_PCTS[meal]}
             language={language}
             onDelete={removeEntry}
             navigation={navigation}
@@ -213,6 +385,7 @@ export default function DayDetailScreen({ navigation }) {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center',
@@ -224,70 +397,79 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '700' },
   headerSub: { fontSize: 12, marginTop: 1 },
 
-  summaryCard: {
-    margin: 16, borderRadius: 20, borderWidth: 1,
-    padding: 20, gap: 16,
+  card: {
+    marginHorizontal: 16, marginBottom: 8,
+    borderRadius: 20, padding: 18, borderWidth: 1,
   },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  summaryItem: { alignItems: 'flex-start', gap: 4, flex: 1 },
-  summaryNum: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  summaryLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
-  summaryCenter: { flex: 1, alignItems: 'center' },
-
-  kcalRing: {
-    width: 90, height: 90, borderRadius: 45, borderWidth: 4,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  kcalRingNum: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  kcalRingLabel: { fontSize: 10, fontWeight: '600' },
-
-  calorieTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  calorieFill: { height: '100%', borderRadius: 4 },
-
-  macroCard: {
-    marginHorizontal: 16, marginBottom: 8, borderRadius: 20,
-    borderWidth: 1, padding: 18, gap: 14,
-  },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  macroBarWrap: { gap: 6 },
-  macroBarTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  macroName: { fontSize: 13, fontWeight: '600' },
-  macroVal: { fontSize: 12, fontWeight: '500' },
-  macroTrack: { height: 7, borderRadius: 4, overflow: 'hidden' },
-  macroFill: { height: '100%', borderRadius: 4 },
 
   sectionHeader: {
     fontSize: 11, fontWeight: '700', letterSpacing: 1,
-    marginHorizontal: 16, marginTop: 16, marginBottom: 8,
+    marginHorizontal: 16, marginTop: 20, marginBottom: 8,
   },
 
+  // Calorie summary
+  calorieRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  calorieCol: { flex: 1, gap: 4 },
+  calorieNum: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  calorieLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  ringCenter: { flex: 1, alignItems: 'center' },
+  calorieRing: {
+    width: 86, height: 86, borderRadius: 43, borderWidth: 5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  ringNum: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  ringLabel: { fontSize: 10, fontWeight: '600' },
+  progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 4 },
+
+  // Macros
+  macroTopRow: { flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 16 },
+  macroPctCol: { flex: 1, gap: 10 },
+  macroPctRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  macroPctDot: { width: 10, height: 10, borderRadius: 5 },
+  macroPctLabel: { flex: 1, fontSize: 13, fontWeight: '500' },
+  macroPctNum: { fontSize: 14, fontWeight: '700' },
+
+  divider: { height: StyleSheet.hairlineWidth, marginBottom: 16 },
+
+  macroPill: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  macroPillDot: { width: 10, height: 10, borderRadius: 5, marginTop: 2 },
+  macroPillTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  macroPillLabel: { fontSize: 13, fontWeight: '500' },
+  macroPillVal: { fontSize: 13, fontWeight: '700' },
+  macroTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  macroFill: { height: '100%', borderRadius: 3 },
+  macroPillGoal: { fontSize: 10, marginTop: 3 },
+
+  // Nutrition rows
+  nutriRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 13, gap: 12,
+  },
+  nutriIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  nutriLabel: { flex: 1, fontSize: 14, fontWeight: '500' },
+  nutriValue: { fontSize: 15, fontWeight: '700' },
+
+  // Meal sections
   mealSection: {
-    marginHorizontal: 16, marginBottom: 10, borderRadius: 18, borderWidth: 1, overflow: 'hidden',
+    marginHorizontal: 16, marginBottom: 10,
+    borderRadius: 18, borderWidth: 1, overflow: 'hidden',
   },
   mealHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,
   },
-  mealIconWrap: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  mealIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   mealLabel: { flex: 1, fontSize: 14, fontWeight: '700' },
-  mealKcal: { fontSize: 12, fontWeight: '500' },
-  mealAddBtn: {
-    width: 30, height: 30, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  emptyMeal: {
-    fontSize: 13, textAlign: 'center',
-    paddingVertical: 12, paddingBottom: 14,
-  },
+  mealKcal: { fontSize: 12, fontWeight: '600' },
+  mealAddBtn: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  emptyMeal: { fontSize: 13, textAlign: 'center', paddingVertical: 12, paddingBottom: 14 },
 
+  // Food entries
   foodRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth, gap: 12,
   },
   foodLeft: { flex: 1 },
   foodName: { fontSize: 14, fontWeight: '600' },

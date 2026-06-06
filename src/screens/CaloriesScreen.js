@@ -94,15 +94,14 @@ function MacroBar({ label, eaten, goal, color, theme }) {
 
 // ─── Meal row ─────────────────────────────────────────────────────────────────
 const MEAL_CONFIG = [
-  { key: 'breakfast', label: 'Frühstück',   icon: 'sunny-outline',       pct: 0.25, iconColor: '#FF9F0A' },
-  { key: 'lunch',     label: 'Mittagessen', icon: 'restaurant-outline',  pct: 0.35, iconColor: '#0A84FF' },
-  { key: 'dinner',    label: 'Abendessen',  icon: 'moon-outline',        pct: 0.30, iconColor: '#BF5AF2' },
-  { key: 'snack',     label: 'Snacks',      icon: 'apple-outline',       pct: 0.10, iconColor: '#00C896' },
+  { key: 'breakfast', label: 'Frühstück',   icon: 'sunny-outline',      iconColor: '#FF9F0A' },
+  { key: 'lunch',     label: 'Mittagessen', icon: 'restaurant-outline', iconColor: '#0A84FF' },
+  { key: 'dinner',    label: 'Abendessen',  icon: 'moon-outline',       iconColor: '#BF5AF2' },
+  { key: 'snack',     label: 'Snacks',      icon: 'apple-outline',      iconColor: '#00C896' },
 ];
 
-function MealRow({ config, entries, calorieGoal, theme, navigation }) {
+function MealRow({ config, entries, theme, navigation }) {
   const totalKcal = entries.reduce((s, e) => s + (e.calories || 0), 0);
-  const mealGoal = Math.round(calorieGoal * config.pct);
   const bgColor = config.iconColor + '22';
 
   return (
@@ -124,7 +123,7 @@ function MealRow({ config, entries, calorieGoal, theme, navigation }) {
           <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
         </View>
         <Text style={[styles.mealKcalSub, { color: theme.textMuted }]}>
-          {totalKcal} / {mealGoal} kcal
+          {totalKcal > 0 ? `${totalKcal} kcal` : '—'}
         </Text>
       </View>
 
@@ -269,7 +268,6 @@ export default function CaloriesScreen({ navigation }) {
               <MealRow
                 config={config}
                 entries={todayByMeal[config.key] || []}
-                calorieGoal={calorieGoal}
                 theme={theme}
                 navigation={navigation}
               />
