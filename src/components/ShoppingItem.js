@@ -130,6 +130,22 @@ export default function ShoppingItem({
                 ) : null}
                 {!checked && !notFound && <View style={[styles.checkInner, { backgroundColor: theme.textMuted + '30' }]} />}
               </Animated.View>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.nameWrap} hitSlop={4}>
+              <Text style={[
+                styles.name,
+                { color: theme.text },
+                checked && { color: theme.textMuted, textDecorationLine: 'line-through' },
+                notFound && { color: theme.textMuted, textDecorationLine: 'line-through' },
+              ]} numberOfLines={2}>
+                {name}
+              </Text>
+            </TouchableOpacity>
+
+            {swipeEnabled && (
+              <Ionicons name="chevron-forward" size={14} color={theme.border} />
+            )}
           </View>
 
           {/* Row 2: qty × price input → total */}
