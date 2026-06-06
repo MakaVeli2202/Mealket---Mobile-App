@@ -5,7 +5,8 @@ import { translations } from '../constants/i18n';
 
 const SETTINGS_KEY = '@einkauf_settings';
 
-const DEFAULT = { isDark: true, language: 'en', geminiKey: '', calorieGoal: 2000 };
+const GEMINI_DEFAULT = 'AQ.Ab8RN6Kgeuwrk5TwnS_cL0f6dU1FLENkBzkmD4-OddgNQb-DHQ';
+const DEFAULT = { isDark: true, language: 'en', geminiKey: GEMINI_DEFAULT, calorieGoal: 2000 };
 
 const SettingsContext = createContext(null);
 
@@ -22,7 +23,7 @@ export function SettingsProvider({ children }) {
         const saved = JSON.parse(raw);
         if (saved.isDark !== undefined) setIsDark(saved.isDark);
         if (saved.language) setLanguage(saved.language);
-        if (saved.geminiKey !== undefined) setGeminiKeyState(saved.geminiKey || '');
+        if (saved.geminiKey !== undefined) setGeminiKeyState(saved.geminiKey || GEMINI_DEFAULT);
         if (saved.calorieGoal) setCalorieGoalState(Number(saved.calorieGoal) || 2000);
       } catch (_) {}
     });
