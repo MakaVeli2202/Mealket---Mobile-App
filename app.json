@@ -27,9 +27,7 @@
       "package": "com.mealket.app",
       "minSdkVersion": 26,
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_TOTAL_CALORIES_BURNED"
+        "android.permission.CAMERA"
       ],
       "intentFilters": [
         {
@@ -52,8 +50,7 @@
         {
           "cameraPermission": "Allow Mealket to use your camera to scan food labels and barcodes."
         }
-      ],
-      "react-native-health-connect"
+      ]
     ],
     "extra": {
       "eas": {
