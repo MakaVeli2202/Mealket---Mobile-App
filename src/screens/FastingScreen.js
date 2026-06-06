@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Alert, Platform, Share,
   Modal, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSettings } from '../context/SettingsContext';
 import { useFasting } from '../context/FastingContext';
 
@@ -131,12 +132,22 @@ export default function FastingScreen() {
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt }]}
               activeOpacity={0.7}
+              onPress={() => {
+                const msg = isFasting
+                  ? `Ich faste seit ${hh}:${mm}:${ss} (${fastingWindowHours}:${eatingWindowHours})`
+                  : `Ich mache Intervallfasten (${fastingWindowHours}:${eatingWindowHours})`;
+                Share.share({ message: msg }).catch(() => {});
+              }}
             >
               <Ionicons name="share-outline" size={18} color={theme.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt }]}
               activeOpacity={0.7}
+              onPress={() => Alert.alert(
+                'Intervallfasten',
+                `${fastingWindowHours}:${eatingWindowHours} — ${fastingWindowHours}h Fasten, ${eatingWindowHours}h Essen.\n\nDein Fasten startet automatisch nach dem Essensfenster.`
+              )}
             >
               <Ionicons name="information-circle-outline" size={18} color={theme.textMuted} />
             </TouchableOpacity>
@@ -148,21 +159,21 @@ export default function FastingScreen() {
           </Text>
 
           {/* Circle icon */}
-          <View
-            style={[
-              styles.circle,
-              {
-                borderColor: isFasting ? theme.accent : theme.accentGreen,
-                backgroundColor: isFasting ? theme.accentLight : theme.accentGreenLight,
-              },
-            ]}
+          <LinearGradient
+            colors={isFasting
+              ? [theme.accent + '30', theme.accent + '10']
+              : [theme.accentGreen + '30', theme.accentGreen + '10']
+            }
+            start={{ x: 0.3, y: 0 }}
+            end={{ x: 0.7, y: 1 }}
+            style={[styles.circle, { borderColor: isFasting ? theme.accent : theme.accentGreen }]}
           >
             <Ionicons
               name={isFasting ? 'flame' : 'cafe-outline'}
               size={52}
               color={isFasting ? theme.accent : theme.accentGreen}
             />
-          </View>
+          </LinearGradient>
 
           {/* Timer */}
           <View style={styles.timerRow}>

@@ -155,14 +155,6 @@ const styles = StyleSheet.create({
   inputCard: { borderRadius: 20, borderWidth: 1.5, overflow: 'hidden' },
   input: { minHeight: 260, padding: 18, fontSize: 15, lineHeight: 24 },
 
-  exampleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    marginTop: 14, alignSelf: 'center',
-    paddingVertical: 10, paddingHorizontal: 18,
-    borderRadius: 22, borderWidth: 1.5,
-  },
-  exampleText: { fontSize: 14, fontWeight: '700' },
-
   clearBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 12, alignSelf: 'center',

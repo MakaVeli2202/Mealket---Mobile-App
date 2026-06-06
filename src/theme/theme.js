@@ -35,9 +35,9 @@ const light = {
   sugar: '#BF5AF2',
 
   shadow: {
-    sm: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-    md: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
-    lg: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+    sm: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+    md: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
+    lg: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 30, shadowOffset: { width: 0, height: 10 }, elevation: 16 },
   },
 };
 
@@ -71,9 +71,9 @@ const dark = {
   sugar: '#BF5AF2',
 
   shadow: {
-    sm: { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-    md: { shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
-    lg: { shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+    sm: { shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+    md: { shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+    lg: { shadowColor: '#000', shadowOpacity: 0.7, shadowRadius: 36, shadowOffset: { width: 0, height: 12 }, elevation: 20 },
   },
 };
 
@@ -81,4 +81,4 @@ export function getTheme(isDark) {
   return isDark ? dark : light;
 }
 
-export const theme = dark;
+

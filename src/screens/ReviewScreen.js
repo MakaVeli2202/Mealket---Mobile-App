@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSettings } from '../context/SettingsContext';
 import { useShopping } from '../context/ShoppingContext';
 
@@ -195,13 +196,26 @@ export default function ReviewScreen({ navigation, route }) {
       {/* Confirm footer */}
       <View style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>
         <TouchableOpacity
-          style={[styles.confirmBtn, { backgroundColor: totalItems === 0 ? theme.border : theme.accent }]}
           onPress={handleConfirm}
           disabled={totalItems === 0}
           activeOpacity={0.85}
         >
-          <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" />
-          <Text style={styles.confirmText}>{r.confirm}</Text>
+          {totalItems === 0 ? (
+            <View style={[styles.confirmBtn, { backgroundColor: theme.border }]}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" />
+              <Text style={styles.confirmText}>{r.confirm}</Text>
+            </View>
+          ) : (
+            <LinearGradient
+              colors={[theme.accent, theme.accent + 'DD']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.confirmBtn}
+            >
+              <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" />
+              <Text style={styles.confirmText}>{r.confirm}</Text>
+            </LinearGradient>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

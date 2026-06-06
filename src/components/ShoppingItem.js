@@ -73,7 +73,13 @@ export default function ShoppingItem({
 
   // Animated styles
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-  const checkStyle = useAnimatedStyle(() => ({ transform: [{ scale: checkScale.value }] }));
+  const checkStyle = useAnimatedStyle(() => {
+    const s = checkScale.value;
+    return {
+      transform: [{ scale: s }],
+      shadowOpacity: interpolate(s, [0.8, 1], [0.15, 0.05], Extrapolation.CLAMP),
+    };
+  });
 
   const bgStyle = useAnimatedStyle(() => {
     const opacity = interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP);
@@ -115,26 +121,15 @@ export default function ShoppingItem({
                 checked && { backgroundColor: theme.accentGreen },
                 notFound && { backgroundColor: theme.danger },
                 checkStyle,
+                !checked && !notFound && { shadowColor: theme.accentGreen, shadowOffset: { w: 0, h: 0 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 3 },
               ]}>
-                {checked && <Ionicons name="checkmark" size={13} color="#FFF" />}
-                {notFound && <Ionicons name="close" size={13} color="#FFF" />}
+                {checked ? (
+                  <Ionicons name="checkmark" size={14} color="#FFF" />
+                ) : notFound ? (
+                  <Ionicons name="close" size={14} color="#FFF" />
+                ) : null}
+                {!checked && !notFound && <View style={[styles.checkInner, { backgroundColor: theme.textMuted + '30' }]} />}
               </Animated.View>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.nameWrap} hitSlop={4}>
-              <Text style={[
-                styles.name,
-                { color: theme.text },
-                checked && { color: theme.textMuted, textDecorationLine: 'line-through' },
-                notFound && { color: theme.textMuted, textDecorationLine: 'line-through' },
-              ]} numberOfLines={2}>
-                {name}
-              </Text>
-            </TouchableOpacity>
-
-            {swipeEnabled && (
-              <Ionicons name="chevron-forward" size={14} color={theme.border} />
-            )}
           </View>
 
           {/* Row 2: qty × price input → total */}
@@ -172,7 +167,7 @@ export default function ShoppingItem({
 
               {liveTotal > 0 ? (
                 <Text style={[styles.total, { color: checked ? theme.accentGreen : theme.accent }]}>
-                  = {liveTotal.toFixed(2)} €
+                  - {liveTotal.toFixed(2)} €
                 </Text>
               ) : !checked ? (
                 <TouchableOpacity
@@ -210,9 +205,13 @@ export default function ShoppingItem({
                 checked && { backgroundColor: theme.accentGreen },
                 notFound && { backgroundColor: theme.danger },
                 checkStyle,
+                !checked && !notFound && { shadowColor: theme.accentGreen, shadowOffset: { w: 0, h: 0 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 3 },
               ]}>
-                {checked && <Ionicons name="checkmark" size={13} color="#FFF" />}
-                {notFound && <Ionicons name="close" size={13} color="#FFF" />}
+                {checked ? (
+                  <Ionicons name="checkmark" size={14} color="#FFF" />
+                ) : notFound ? (
+                  <Ionicons name="close" size={14} color="#FFF" />
+                ) : null}
               </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.nameWrap}>
@@ -242,7 +241,7 @@ export default function ShoppingItem({
               </View>
               {liveTotal > 0 && (
                 <Text style={[styles.total, { color: checked ? theme.accentGreen : theme.accent }]}>
-                  = {liveTotal.toFixed(2)} €
+                  - {liveTotal.toFixed(2)} €
                 </Text>
               )}
             </View>
@@ -268,8 +267,12 @@ const styles = StyleSheet.create({
   row1: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   checkWrap: { paddingTop: 1 },
   checkbox: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 26, height: 26, borderRadius: 13,
     borderWidth: 2, alignItems: 'center', justifyContent: 'center',
+  },
+  checkInner: {
+    width: 8, height: 8, borderRadius: 4,
+    position: 'absolute', opacity: 0.4,
   },
   nameWrap: { flex: 1 },
   name: { fontSize: 15, lineHeight: 22, fontWeight: '500' },

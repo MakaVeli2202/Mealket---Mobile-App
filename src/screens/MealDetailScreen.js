@@ -124,7 +124,7 @@ export default function MealDetailScreen({ route, navigation }) {
 
         <Text style={[styles.headerTitle, { color: theme.text }]}>{meta.label}</Text>
 
-        <TouchableOpacity activeOpacity={0.75} hitSlop={8} style={styles.headerBtn}>
+        <TouchableOpacity activeOpacity={0.75} hitSlop={8} style={styles.headerBtn} onPress={() => navigation.navigate('AddFood', { meal })}>
           <Ionicons name="create-outline" size={22} color={theme.textMuted} />
         </TouchableOpacity>
       </View>

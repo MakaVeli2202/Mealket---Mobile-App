@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
 import { getTodaySteps, stepsToKcal } from '../utils/healthConnect';
@@ -165,35 +166,64 @@ export default function CaloriesScreen({ navigation }) {
   const isOver = totalKcal > calorieGoal;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 }}
-      >
-        {/* ── TOP HEADER ── */}
-        <View style={styles.topHeader}>
-          <Text style={[styles.topTitle, { color: theme.text }]}>Heute</Text>
-          <Text style={[styles.topSubtitle, { color: theme.textMuted }]}>Woche {weekNum}</Text>
-        </View>
-
-        {/* ── ÜBERSICHT SECTION ── */}
-        <View style={styles.sectionRow}>
-          <Text style={[styles.sectionLabel, { color: theme.text }]}>Übersicht</Text>
-          <TouchableOpacity
-            activeOpacity={0.75}
-            hitSlop={8}
-            onPress={() => navigation.navigate('CalorieHistory')}
-          >
-            <Text style={[styles.sectionLink, { color: theme.accent }]}>Alle</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── DARK SUMMARY CARD (tap → day detail) ── */}
-        <TouchableOpacity
-          activeOpacity={0.92}
-          onPress={() => navigation.navigate('DayDetail')}
-          style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    <LinearGradient colors={[theme.bg, theme.surface]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 110 }}
         >
+          {/* ── TOP HEADER ── */}
+          <View style={styles.topHeader}>
+            <View>
+              <Text style={[styles.topTitle, { color: theme.text }]}>Heute</Text>
+              <Text style={[styles.topSubtitle, { color: theme.textMuted }]}>Woche {weekNum}</Text>
+            </View>
+            {/* Quick scan buttons */}
+            <View style={styles.quickScanRow}>
+              <TouchableOpacity
+                style={[styles.quickScanBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => navigation.navigate('BarcodeScanner')}
+                activeOpacity={0.75}
+                hitSlop={4}
+              >
+                <Ionicons name="barcode-outline" size={20} color={theme.accent} />
+                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>Barcode</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickScanBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => navigation.navigate('CameraLabel')}
+                activeOpacity={0.75}
+                hitSlop={4}
+              >
+                <Ionicons name="scan-outline" size={20} color={theme.accent} />
+                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>Label</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── ÜBERSICHT SECTION ── */}
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>Übersicht</Text>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              hitSlop={8}
+              onPress={() => navigation.navigate('CalorieHistory')}
+            >
+              <Text style={[styles.sectionLink, { color: theme.accent }]}>Alle →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ── DARK SUMMARY CARD (tap → day detail) ── */}
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onPress={() => navigation.navigate('DayDetail')}
+        >
+            <LinearGradient
+              colors={theme.dark ? ['#1A2A20', '#1A1A1A'] : ['#F0FAF5', '#FFFFFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.summaryCard, { borderColor: theme.border }]}
+            >
 
           {/* 3-col stats row */}
           <View style={styles.statsRow}>
@@ -247,6 +277,7 @@ export default function CaloriesScreen({ navigation }) {
               theme={theme}
             />
           </View>
+        </LinearGradient>
         </TouchableOpacity>
 
         {/* ── ERNÄHRUNG SECTION ── */}
@@ -279,6 +310,7 @@ export default function CaloriesScreen({ navigation }) {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </LinearGradient>
   );
 }
 
@@ -289,7 +321,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 4,
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   topTitle: {
     fontSize: 34,
@@ -301,6 +335,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.2,
+  },
+  quickScanRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  quickScanBtn: {
+    flexDirection: 'row',
+    gap: 5,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 14, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  quickScanLabel: {
+    fontSize: 13, fontWeight: '700',
   },
 
   // Section header row

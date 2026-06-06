@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import ShoppingItem from './ShoppingItem';
@@ -22,31 +23,37 @@ export default function StoreGroup({
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {/* Store header */}
       <TouchableOpacity
-        style={[styles.header, { backgroundColor: color }]}
         onPress={() => setCollapsed((c) => !c)}
         activeOpacity={0.85}
         hitSlop={4}
       >
-        <View style={styles.headerLeft}>
-          {isNotFoundBucket && (
-            <Ionicons name="alert-circle-outline" size={16} color={textColor} style={{ marginRight: 4 }} />
-          )}
-          <Text style={[styles.storeName, { color: textColor }]}>{name || 'Sonstiges'}</Text>
-          <View style={[styles.countBadge, { backgroundColor: 'rgba(0,0,0,0.18)' }]}>
-            <Text style={[styles.countText, { color: textColor }]}>{checkedCount}/{total}</Text>
+        <LinearGradient
+          colors={[color, color + 'DD']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerLeft}>
+            {isNotFoundBucket && (
+              <Ionicons name="alert-circle-outline" size={16} color={textColor} style={{ marginRight: 4 }} />
+            )}
+            <Text style={[styles.storeName, { color: textColor }]}>{name || 'Sonstiges'}</Text>
+            <View style={[styles.countBadge, { backgroundColor: 'rgba(0,0,0,0.18)' }]}>
+              <Text style={[styles.countText, { color: textColor }]}>{checkedCount}/{total}</Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.headerRight}>
-          {subtotal > 0 && (
-            <Text style={[styles.storeSubtotal, { color: textColor }]}>
-              {subtotal.toFixed(2)} €
-            </Text>
-          )}
-          <Ionicons
-            name={collapsed ? 'chevron-down' : 'chevron-up'}
-            size={18} color={textColor} style={{ opacity: 0.8 }}
-          />
-        </View>
+          <View style={styles.headerRight}>
+            {subtotal > 0 && (
+              <Text style={[styles.storeSubtotal, { color: textColor }]}>
+                - {subtotal.toFixed(2)} €
+              </Text>
+            )}
+            <Ionicons
+              name={collapsed ? 'chevron-down' : 'chevron-up'}
+              size={18} color={textColor} style={{ opacity: 0.8 }}
+            />
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
 
       {/* Progress bar under header */}
@@ -90,7 +97,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 13,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },

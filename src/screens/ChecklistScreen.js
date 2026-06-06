@@ -73,7 +73,7 @@ export default function ChecklistScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <FlatList
         data={allStores}
-        keyExtractor={(s) => s.id || s.name || String(Math.random())}
+        keyExtractor={(s) => s.id || s.name || s.color}
         renderItem={({ item: store }) => (
           <StoreGroup
             store={store}

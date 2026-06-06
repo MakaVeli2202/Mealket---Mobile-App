@@ -317,9 +317,4 @@ export const translations = {
   },
 };
 
-export function t(lang, path) {
-  const parts = path.split('.');
-  let node = translations[lang] || translations.en;
-  for (const p of parts) node = node?.[p];
-  return node ?? path;
-}
+

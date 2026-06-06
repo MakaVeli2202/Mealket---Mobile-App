@@ -15,8 +15,13 @@ export default function SettingsScreen({ navigation }) {
   const s = tr.settings;
 
   const [goalInput, setGoalInput] = useState(String(calorieGoal));
+  const [keyDraft, setKeyDraft] = useState(geminiKey);
+  const [keyVisible, setKeyVisible] = useState(false);
 
   const handleGoalSave = () => { setCalorieGoal(goalInput); };
+  const handleKeySave = () => {
+    if (keyDraft.trim()) setGeminiKey(keyDraft.trim());
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -106,6 +111,34 @@ export default function SettingsScreen({ navigation }) {
               </View>
             </View>
 
+          </View>
+
+          {/* Gemini API Key */}
+          <Text style={[styles.section, { color: theme.textMuted }]}>Gemini API</Text>
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.geminiBlock}>
+              <View style={styles.geminiLabelRow}>
+                <Ionicons name="key-outline" size={18} color={theme.textMuted} />
+                <Text style={[styles.rowLabel, { color: theme.text, flex: 1 }]}>{s.geminiKey}</Text>
+              </View>
+              <View style={[styles.keyInputRow, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+                <TextInput
+                  style={[styles.keyInput, { color: theme.text }]}
+                  value={keyDraft}
+                  onChangeText={setKeyDraft}
+                  onBlur={handleKeySave}
+                  placeholder={s.geminiKeyPlaceholder}
+                  placeholderTextColor={theme.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry={!keyVisible}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setKeyVisible((v) => !v)} hitSlop={8}>
+                  <Ionicons name={keyVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.hint, { color: theme.textMuted }]}>{s.geminiKeyHint}</Text>
+            </View>
           </View>
 
           {/* History */}

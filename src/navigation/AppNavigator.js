@@ -1,9 +1,10 @@
-import React from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { Platform, StyleSheet, Animated } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import PasteScreen from '../screens/PasteScreen';
 import ReviewScreen from '../screens/ReviewScreen';
@@ -81,10 +82,10 @@ export default function AppNavigator({ navigationRef }) {
   };
 
   const tabIcons = {
-    ShoppingTab: { focused: 'cart', outline: 'cart-outline' },
-    CalorieTab:  { focused: 'book', outline: 'book-outline' },
-    FastingTab:  { focused: 'timer', outline: 'timer-outline' },
-    ProfilTab:   { focused: 'person-circle', outline: 'person-circle-outline' },
+    ShoppingTab: { focused: 'cart-sharp', outline: 'cart-outline' },
+    CalorieTab:  { focused: 'journal-sharp', outline: 'journal-outline' },
+    FastingTab:  { focused: 'time-sharp', outline: 'time-outline' },
+    ProfilTab:   { focused: 'person-sharp', outline: 'person-outline' },
   };
 
   return (
@@ -93,17 +94,38 @@ export default function AppNavigator({ navigationRef }) {
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: theme.bg,
-            borderTopColor: theme.border,
-            borderTopWidth: StyleSheet.hairlineWidth,
+            backgroundColor: 'transparent',
+            position: 'absolute',
+            borderTopWidth: 0,
+            height: Platform.OS === 'ios' ? 96 : 78,
+            paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+            paddingTop: 10,
+            elevation: 0,
           },
+          tabBarBackground: () => (
+            <LinearGradient
+              colors={[theme.bg + 'F2', theme.bg]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={{ flex: 1 }}
+            />
+          ),
           tabBarActiveTintColor: theme.accent,
           tabBarInactiveTintColor: theme.textMuted,
-          tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-          tabBarIcon: ({ color, focused }) => {
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+          tabBarIcon: ({ color, focused, size }) => {
             const ico = tabIcons[route.name];
             if (!ico) return null;
-            return <Ionicons name={focused ? ico.focused : ico.outline} size={24} color={color} />;
+            return (
+              <View style={styles.tabIconWrap}>
+                {focused && <View style={[styles.tabPill, { backgroundColor: theme.accent }]} />}
+                <Ionicons
+                  name={focused ? ico.focused : ico.outline}
+                  size={focused ? 26 : 22}
+                  color={color}
+                />
+              </View>
+            );
           },
         })}
       >
@@ -131,3 +153,16 @@ export default function AppNavigator({ navigationRef }) {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  tabIconWrap: {
+    width: 44, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  tabPill: {
+    position: 'absolute',
+    width: 28, height: 4,
+    borderRadius: 2,
+    bottom: -2,
+  },
+});
