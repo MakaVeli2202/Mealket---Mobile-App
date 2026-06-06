@@ -1,11 +1,115 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
+  TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import { useShopping } from '../context/ShoppingContext';
+
+function EditableItem({ item, storeIdx, onUpdate, onRemove, theme }) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameText, setNameText] = useState(item.name);
+  const [qtyText, setQtyText] = useState(String(item.quantity));
+  const [priceText, setPriceText] = useState(item.unitPrice > 0 ? item.unitPrice.toFixed(2) : '');
+
+  const commitName = () => {
+    setEditingName(false);
+    const n = nameText.trim();
+    if (n) onUpdate(storeIdx, item.id, { name: n });
+    else setNameText(item.name);
+  };
+
+  const commitQty = (val) => {
+    const q = parseInt(val, 10);
+    if (!isNaN(q) && q > 0) {
+      onUpdate(storeIdx, item.id, { quantity: q, subtotal: q * (item.unitPrice || 0) });
+    } else {
+      setQtyText(String(item.quantity));
+    }
+  };
+
+  const commitPrice = (val) => {
+    const p = parseFloat(val.replace(',', '.'));
+    const price = isNaN(p) ? 0 : p;
+    onUpdate(storeIdx, item.id, { unitPrice: price, subtotal: (item.quantity || 1) * price });
+  };
+
+  const total = (item.quantity || 1) * (parseFloat(priceText.replace(',', '.')) || 0);
+
+  return (
+    <View style={[styles.itemRow, { borderTopColor: theme.border }]}>
+      <View style={styles.itemMain}>
+        {/* Name — tap to edit */}
+        {editingName ? (
+          <TextInput
+            autoFocus
+            style={[styles.nameInput, { color: theme.text, borderColor: theme.accent }]}
+            value={nameText}
+            onChangeText={setNameText}
+            onBlur={commitName}
+            onSubmitEditing={commitName}
+            returnKeyType="done"
+          />
+        ) : (
+          <TouchableOpacity onPress={() => setEditingName(true)} activeOpacity={0.7}>
+            <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
+            <Text style={[styles.editHint, { color: theme.textMuted }]}>tap to edit</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Qty × Price → Total row */}
+        <View style={styles.qtyPriceRow}>
+          {/* Qty */}
+          <View style={[styles.numInputWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+            <TextInput
+              style={[styles.numInput, { color: theme.text }]}
+              value={qtyText}
+              onChangeText={setQtyText}
+              onBlur={(e) => commitQty(e.nativeEvent.text)}
+              onSubmitEditing={(e) => commitQty(e.nativeEvent.text)}
+              keyboardType="number-pad"
+              selectTextOnFocus
+            />
+            <Text style={[styles.numLabel, { color: theme.textMuted }]}>qty</Text>
+          </View>
+
+          <Text style={[styles.multiply, { color: theme.textMuted }]}>×</Text>
+
+          {/* Unit price */}
+          <View style={[styles.numInputWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+            <TextInput
+              style={[styles.numInput, { color: theme.text }]}
+              value={priceText}
+              onChangeText={setPriceText}
+              onBlur={(e) => commitPrice(e.nativeEvent.text)}
+              onSubmitEditing={(e) => commitPrice(e.nativeEvent.text)}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor={theme.textMuted}
+              selectTextOnFocus
+            />
+            <Text style={[styles.numLabel, { color: theme.textMuted }]}>€</Text>
+          </View>
+
+          {total > 0 && (
+            <Text style={[styles.total, { color: theme.accent }]}>= {total.toFixed(2)} €</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Remove */}
+      <TouchableOpacity
+        style={styles.removeBtn}
+        onPress={() => onRemove(storeIdx, item.id)}
+        hitSlop={8}
+      >
+        <Ionicons name="close-circle" size={22} color={theme.danger} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function ReviewScreen({ navigation, route }) {
   const { theme, tr } = useSettings();
@@ -23,8 +127,19 @@ export default function ReviewScreen({ navigation, route }) {
     );
   };
 
+  const updateItem = (storeIndex, itemId, patch) => {
+    setStores((prev) =>
+      prev.map((store, si) => {
+        if (si !== storeIndex) return store;
+        const items = store.items.map((i) => i.id === itemId ? { ...i, ...patch } : i);
+        const subtotal = items.reduce((s, i) => s + (i.subtotal || 0), 0);
+        return { ...store, items, subtotal };
+      })
+    );
+  };
+
   const handleConfirm = async () => {
-    const grandTotal = stores.reduce((s, g) => Math.round((s + g.subtotal) * 100) / 100, 0);
+    const grandTotal = stores.reduce((s, g) => Math.round((s + (g.subtotal || 0)) * 100) / 100, 0);
     const finalList = { ...parsedList, stores, grandTotal };
     loadList(finalList);
     await saveToHistory(finalList);
@@ -43,7 +158,7 @@ export default function ReviewScreen({ navigation, route }) {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]}>{r.title}</Text>
           <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-            {totalItems} {r.itemsFound}
+            {totalItems} {r.itemsFound} · tap items to edit
           </Text>
         </View>
       </View>
@@ -51,7 +166,7 @@ export default function ReviewScreen({ navigation, route }) {
       <FlatList
         data={stores}
         keyExtractor={(_, i) => i.toString()}
-        contentContainerStyle={[styles.list, { paddingBottom: 110 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
         renderItem={({ item }) => {
           const storeIdx = stores.indexOf(item);
           return (
@@ -63,25 +178,14 @@ export default function ReviewScreen({ navigation, route }) {
                 </View>
               )}
               {item.items.map((product) => (
-                <View key={product.id} style={[styles.itemRow, { borderTopColor: theme.border }]}>
-                  <View style={styles.itemInfo}>
-                    <Text style={[styles.itemName, { color: theme.text }]}>
-                      {product.quantity > 1 ? `${product.quantity}× ` : ''}{product.name}
-                    </Text>
-                    {product.unitPrice > 0 && (
-                      <Text style={[styles.itemPrice, { color: theme.accent }]}>
-                        {product.subtotal.toFixed(2)} €
-                      </Text>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => removeItem(storeIdx, product.id)}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="close-circle" size={22} color={theme.danger} />
-                  </TouchableOpacity>
-                </View>
+                <EditableItem
+                  key={product.id}
+                  item={product}
+                  storeIdx={storeIdx}
+                  onUpdate={updateItem}
+                  onRemove={removeItem}
+                  theme={theme}
+                />
               ))}
             </View>
           );
@@ -115,9 +219,7 @@ const styles = StyleSheet.create({
 
   list: { padding: 16, gap: 12 },
 
-  storeSection: {
-    borderRadius: 18, borderWidth: 1, overflow: 'hidden', marginBottom: 4,
-  },
+  storeSection: { borderRadius: 18, borderWidth: 1, overflow: 'hidden', marginBottom: 4 },
   storeHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 11,
@@ -126,14 +228,31 @@ const styles = StyleSheet.create({
   storeCount: { fontSize: 12, opacity: 0.8 },
 
   itemRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: 1,
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderTopWidth: 1, gap: 10,
   },
-  itemInfo: { flex: 1, gap: 2 },
-  itemName: { fontSize: 15, fontWeight: '500' },
-  itemPrice: { fontSize: 13, fontWeight: '600' },
-  removeBtn: { padding: 4 },
+  itemMain: { flex: 1, gap: 8 },
+
+  itemName: { fontSize: 15, fontWeight: '600' },
+  editHint: { fontSize: 10, marginTop: 1 },
+  nameInput: {
+    fontSize: 15, fontWeight: '600',
+    borderBottomWidth: 1.5, paddingVertical: 2, paddingHorizontal: 0,
+  },
+
+  qtyPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  numInputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderRadius: 9,
+    paddingHorizontal: 8, paddingVertical: 5, gap: 4,
+  },
+  numInput: { fontSize: 14, fontWeight: '700', minWidth: 36, padding: 0 },
+  numLabel: { fontSize: 12 },
+  multiply: { fontSize: 14 },
+  total: { fontSize: 14, fontWeight: '800' },
+
+  removeBtn: { padding: 4, marginTop: 2 },
 
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,

@@ -1,12 +1,19 @@
 import React, { useRef, useState } from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, TextInput } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { TouchableOpacity, View, Text, StyleSheet, TextInput, Platform } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle,
   withSpring, withTiming, withSequence, runOnJS, interpolate, Extrapolation,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
+
+// Gesture handler only works on native — skip on web to avoid crash
+let Gesture, GestureDetector;
+if (Platform.OS !== 'web') {
+  const GH = require('react-native-gesture-handler');
+  Gesture = GH.Gesture;
+  GestureDetector = GH.GestureDetector;
+}
 
 const SWIPE_THRESHOLD = 80;
 const SWIPE_MAX = 115;
@@ -25,10 +32,10 @@ export default function ShoppingItem({
 
   const swipeEnabled = !isNotFoundBucket && !checked && !notFound;
 
-  const panGesture = Gesture.Pan()
+  const panGesture = Platform.OS !== 'web' ? Gesture.Pan()
     .enabled(swipeEnabled)
-    .activeOffsetX(20)           // only right swipe, simpler threshold
-    .failOffsetY([-20, 20])      // fail if more than 20px vertical (scrolling)
+    .activeOffsetX(20)
+    .failOffsetY([-20, 20])
     .onUpdate((e) => {
       const x = Math.min(Math.max(e.translationX, 0), SWIPE_MAX);
       translateX.value = x;
@@ -42,7 +49,7 @@ export default function ShoppingItem({
         translateX.value = withSpring(0, { damping: 18, stiffness: 220 });
       }
       triggered.value = false;
-    });
+    }) : null;
 
   const handleToggle = () => {
     checkScale.value = withSequence(
@@ -95,8 +102,9 @@ export default function ShoppingItem({
         </Animated.View>
       </Animated.View>
 
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.container, { backgroundColor: rowBg }, rowStyle]}>
+      {Platform.OS !== 'web' && GestureDetector ? (
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.container, { backgroundColor: rowBg }, rowStyle]}>
 
           {/* Row 1: checkbox + name */}
           <View style={styles.row1}>
@@ -189,8 +197,58 @@ export default function ShoppingItem({
             </View>
           )}
 
+          </Animated.View>
+        </GestureDetector>
+      ) : (
+        <Animated.View style={[styles.container, { backgroundColor: rowBg }]}>
+          {/* Row 1: checkbox + name */}
+          <View style={styles.row1}>
+            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.checkWrap} hitSlop={8}>
+              <Animated.View style={[
+                styles.checkbox,
+                { borderColor: checked ? theme.accentGreen : notFound ? theme.danger : theme.border },
+                checked && { backgroundColor: theme.accentGreen },
+                notFound && { backgroundColor: theme.danger },
+                checkStyle,
+              ]}>
+                {checked && <Ionicons name="checkmark" size={13} color="#FFF" />}
+                {notFound && <Ionicons name="close" size={13} color="#FFF" />}
+              </Animated.View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.nameWrap}>
+              <Text style={[styles.name, { color: theme.text }, checked && { color: theme.textMuted, textDecorationLine: 'line-through' }]} numberOfLines={2}>
+                {name}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {!notFound && (
+            <View style={styles.row2}>
+              <View style={[styles.qtyBadge, { backgroundColor: theme.surfaceAlt }]}>
+                <Text style={[styles.qtyText, { color: theme.textSub }]}>{quantity}×</Text>
+              </View>
+              <View style={[styles.priceInputWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+                <TextInput
+                  ref={inputRef}
+                  style={[styles.priceInput, { color: theme.text }]}
+                  value={priceText}
+                  onChangeText={handlePriceChange}
+                  onBlur={handlePriceBlur}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={theme.textMuted}
+                  selectTextOnFocus
+                />
+                <Text style={[styles.currency, { color: theme.textMuted }]}>€</Text>
+              </View>
+              {liveTotal > 0 && (
+                <Text style={[styles.total, { color: checked ? theme.accentGreen : theme.accent }]}>
+                  = {liveTotal.toFixed(2)} €
+                </Text>
+              )}
+            </View>
+          )}
         </Animated.View>
-      </GestureDetector>
+      )}
     </View>
   );
 }

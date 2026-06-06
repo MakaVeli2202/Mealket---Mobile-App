@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useSettings } from '../context/SettingsContext';
 import { parseShoppingText } from '../utils/parser';
 
@@ -19,15 +20,30 @@ export default function PasteScreen({ navigation, route }) {
     if (shared) setText(shared);
   }, [route?.params?.sharedText]);
 
-  const handleParse = () => {
-    if (!text.trim()) return;
+  const handlePasteAndParse = async () => {
     setLoading(true);
     try {
-      const list = parseShoppingText(text.trim());
+      const clipped = await Clipboard.getStringAsync();
+      const input = clipped?.trim() || text.trim();
+      if (!input) { setLoading(false); return; }
+      if (clipped?.trim()) setText(clipped.trim());
+      const list = parseShoppingText(input);
       navigation.navigate('Review', { parsedList: list });
+    } catch (_) {
+      // If clipboard fails, parse whatever is in the text box
+      if (text.trim()) {
+        const list = parseShoppingText(text.trim());
+        navigation.navigate('Review', { parsedList: list });
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleParseOnly = () => {
+    if (!text.trim()) return;
+    const list = parseShoppingText(text.trim());
+    navigation.navigate('Review', { parsedList: list });
   };
 
   return (
@@ -79,26 +95,39 @@ export default function PasteScreen({ navigation, route }) {
           )}
         </ScrollView>
 
-        {/* Parse button */}
+        {/* Buttons */}
         <View style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>
+          {/* Primary: Paste from clipboard & parse */}
           <TouchableOpacity
-            style={[
-              styles.parseBtn,
-              { backgroundColor: theme.accent },
-              !text.trim() && { opacity: 0.35 },
-            ]}
-            onPress={handleParse}
-            disabled={!text.trim() || loading}
+            style={[styles.parseBtn, { backgroundColor: theme.accent }]}
+            onPress={handlePasteAndParse}
+            disabled={loading}
             activeOpacity={0.85}
           >
             {loading
               ? <ActivityIndicator color="#FFF" />
               : <>
-                  <Ionicons name="list-outline" size={20} color="#FFF" />
-                  <Text style={styles.parseBtnText}>{p.parseBtn}</Text>
+                  <Ionicons name="clipboard-outline" size={20} color="#FFF" />
+                  <Text style={styles.parseBtnText}>
+                    {text.trim() ? 'Paste & Parse' : 'Paste from Clipboard'}
+                  </Text>
                 </>
             }
           </TouchableOpacity>
+
+          {/* Secondary: parse only typed text (shown when user typed something) */}
+          {!!text.trim() && (
+            <TouchableOpacity
+              style={[styles.parseSecondary, { borderColor: theme.border }]}
+              onPress={handleParseOnly}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="list-outline" size={17} color={theme.textMuted} />
+              <Text style={[styles.parseSecondaryText, { color: theme.textMuted }]}>
+                Parse typed text
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
       </KeyboardAvoidingView>
@@ -142,10 +171,15 @@ const styles = StyleSheet.create({
   },
   clearText: { fontSize: 13 },
 
-  footer: { padding: 16, paddingBottom: 20, borderTopWidth: 1 },
+  footer: { padding: 16, paddingBottom: 20, borderTopWidth: 1, gap: 10 },
   parseBtn: {
     borderRadius: 18, height: 56,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
   parseBtnText: { color: '#FFF', fontSize: 17, fontWeight: '800' },
+  parseSecondary: {
+    borderRadius: 14, height: 44, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  parseSecondaryText: { fontSize: 14, fontWeight: '600' },
 });
