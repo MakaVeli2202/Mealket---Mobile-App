@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"e:\\\\VS-Code\\\\Einkauf\\\\\" && echo \"---\" && ls \"e:\\\\VS-Code\\\\Einkauf\\\\einkauf\\\\\" 2>&1)",
+      "Read(//e/VS-Code/**)",
+      "Read(//c/Users/mmaha/Downloads/**)",
+      "Bash(node -e \"const {getDefaultConfig} = require\\('E:/VS-Code/Einkauf/node_modules/expo/metro-config'\\); const c = getDefaultConfig\\('E:/VS-Code/Einkauf'\\); console.log\\('transformerPath:', c.transformerPath\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const m = require\\('E:/VS-Code/Einkauf/node_modules/react-native-reanimated/metro-config'\\); console.log\\(Object.keys\\(m\\)\\);\")",
+      "Read(//c/Users/mmaha/.claude/skills/ui-ux-pro-max/**)",
+      "Bash(python scripts/search.py \"food nutrition grocery shopping tracker mobile app\" --design-system -p \"Mealket\" --stack react-native -f markdown)",
+      "Bash(Copy-Item \"C:\\\\Users\\\\mmaha\\\\Downloads\\\\Mealket-Icon.jpg\" -Destination \"e:\\\\VS-Code\\\\Einkauf\\\\assets\\\\icon.jpg\" -Force)",
+      "Bash(Copy-Item \"C:\\\\Users\\\\mmaha\\\\Downloads\\\\Mealket-Icon.jpg\" -Destination \"e:\\\\VS-Code\\\\Einkauf\\\\assets\\\\adaptive-icon.jpg\" -Force)",
+      "Bash(Copy-Item \"C:\\\\Users\\\\mmaha\\\\Downloads\\\\Mealket-Icon.jpg\" -Destination \"e:\\\\VS-Code\\\\Einkauf\\\\assets\\\\favicon.jpg\" -Force)",
+      "PowerShell(Copy-Item \"C:\\\\Users\\\\mmaha\\\\Downloads\\\\Mealket-Icon.jpg\" -Destination \"e:\\\\VS-Code\\\\Einkauf\\\\assets\\\\icon.jpg\" -Force)",
+      "PowerShell(Copy-Item \"C:\\\\Users\\\\mmaha\\\\Downloads\\\\Mealket-Icon.jpg\" -Destination \"e:\\\\VS-Code\\\\Einkauf\\\\assets\\\\adaptive-icon.jpg\" -Force)",
+      "PowerShell(Copy-Item \"C:\\\\Users\\\\mmaha\\\\Downloads\\\\Mealket-Icon.jpg\" -Destination \"e:\\\\VS-Code\\\\Einkauf\\\\assets\\\\favicon.jpg\" -Force)",
+      "Bash(ls \"e:\\\\VS-Code\\\\\" 2>/dev/null || ls /e/VS-Code/ 2>/dev/null || echo \"checking\")",
+      "Read(//e/VS-Code\" 2>/dev/null || ls /e/VS-Code/ 2>/dev/**)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm install *)",
+      "Bash(claude mcp *)",
+      "Bash(ruflo --version)",
+      "Bash(npx ruflo@latest --version)",
+      "Bash(npx expo *)",
+      "Bash(eas whoami *)",
+      "Bash(eas build:list --limit 1)",
+      "Bash(gh repo *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\mmaha\\Downloads"
+    ]
+  }
+}

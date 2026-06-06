@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Mealket",
+    "slug": "mealket",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.jpg",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/icon.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0D"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mealket.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan food labels and barcodes for nutrition info.",
+        "NSPhotoLibraryUsageDescription": "Used to pick images of food labels."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.jpg",
+        "backgroundColor": "#0D0D0D"
+      },
+      "package": "com.mealket.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_TOTAL_CALORIES_BURNED"
+      ],
+      "intentFilters": [
+        {
+          "action": "android.intent.action.SEND",
+          "data": [
+            {
+              "mimeType": "text/plain"
+            }
+          ],
+          "category": [
+            "android.intent.category.DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Mealket to use your camera to scan food labels and barcodes."
+        }
+      ],
+      "react-native-health-connect"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fe619d14-fb51-46bd-b59a-2a334579e308"
+      }
+    },
+    "owner": "makaveli2202"
+  }
+}
