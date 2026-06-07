@@ -11,34 +11,18 @@ import * as Clipboard from 'expo-clipboard';
 import Animated, {
   useSharedValue, useAnimatedStyle,
   withSpring, withTiming, withRepeat, withSequence,
-  withDelay, interpolate, Extrapolation, FadeInDown,
+  interpolate, Extrapolation, FadeInDown,
   Easing,
 } from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
 import { parseShoppingText } from '../utils/parser';
+import GlassCard from '../components/GlassCard';
+import GlassBg from '../components/GlassBg';
 
 const { width: W } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 96 : 78;
-
-function GlowDot({ color, size, top, left, delay = 0 }) {
-  const opac = useSharedValue(0.15);
-  useEffect(() => {
-    opac.value = withDelay(delay, withRepeat(
-      withSequence(
-        withTiming(0.45, { duration: 2400, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.15, { duration: 2400, easing: Easing.inOut(Easing.sine) })
-      ), -1
-    ));
-  }, []);
-  const s = useAnimatedStyle(() => ({ opacity: opac.value }));
-  return (
-    <Animated.View style={[{
-      position: 'absolute', top, left,
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: color,
-    }, s]} />
-  );
-}
+// useBottomTabBarHeight() returns 0 through nested Stack navigator with a custom floating tab bar
+// Use the same constant as AppNavigator's BAR_H
+const TAB_BAR_H = Platform.OS === 'ios' ? 96 : 80;
 
 export default function PasteScreen({ navigation, route }) {
   const { theme, tr } = useSettings();
@@ -66,8 +50,8 @@ export default function PasteScreen({ navigation, route }) {
   useEffect(() => {
     iconSpin.value = withRepeat(
       withSequence(
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.sine) })
+        withTiming(1, { duration: 3000, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
+        withTiming(0, { duration: 3000, easing: Easing.bezier(0.42, 0, 0.58, 1) })
       ), -1
     );
   }, []);
@@ -119,14 +103,8 @@ export default function PasteScreen({ navigation, route }) {
   const charCount = text.length;
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: theme.bg }]}>
-      {/* Background ambient glow dots */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <GlowDot color={theme.accent} size={180} top={-40} left={W - 100} delay={0} />
-        <GlowDot color={theme.accent} size={120} top={300} left={-40} delay={1200} />
-        <GlowDot color={theme.accentGreen} size={80} top={160} left={W / 2 - 40} delay={800} />
-      </View>
-
+    <GlassBg theme={theme}>
+    <SafeAreaView style={[styles.root, { backgroundColor: 'transparent' }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
         {/* ── Hero Header ── */}
@@ -158,7 +136,7 @@ export default function PasteScreen({ navigation, route }) {
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[styles.scroll, { paddingBottom: 24 }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_H + 160 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -179,22 +157,11 @@ export default function PasteScreen({ navigation, route }) {
             entering={FadeInDown.duration(380).delay(100).springify().damping(20)}
             style={styles.inputCardOuter}
           >
-            <Animated.View
-              style={[
-                styles.inputCard,
-                { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.accent },
-                cardBorderStyle,
-              ]}
-            >
-              {/* Terminal-style top bar */}
-              <View style={[styles.termBar, { backgroundColor: theme.surfaceAlt, borderBottomColor: theme.border }]}>
-                <View style={styles.termDots}>
-                  <View style={[styles.termDot, { backgroundColor: '#FF5F57' }]} />
-                  <View style={[styles.termDot, { backgroundColor: '#FEBC2E' }]} />
-                  <View style={[styles.termDot, { backgroundColor: '#28C840' }]} />
-                </View>
+            <GlassCard theme={theme} intensity={65} glow style={styles.inputCard}>
+              {/* File label bar */}
+              <View style={[styles.termBar, { borderBottomColor: theme.border + '60' }]}>
+                <Ionicons name="document-text-outline" size={12} color={theme.accent} />
                 <Text style={[styles.termLabel, { color: theme.textMuted }]}>shopping-list.txt</Text>
-                <View style={{ width: 42 }} />
               </View>
 
               <TextInput
@@ -212,7 +179,6 @@ export default function PasteScreen({ navigation, route }) {
                 textAlignVertical="top"
               />
 
-              {/* Glow accent line at bottom when focused */}
               {focused && (
                 <LinearGradient
                   colors={[theme.accent + '00', theme.accent, theme.accent + '00']}
@@ -220,32 +186,9 @@ export default function PasteScreen({ navigation, route }) {
                   style={styles.inputGlowLine}
                 />
               )}
-            </Animated.View>
+            </GlassCard>
           </Animated.View>
 
-          {/* ── Quick tips chips ── */}
-          {!text && (
-            <Animated.View
-              entering={FadeInDown.duration(320).delay(180).springify().damping(20)}
-              style={styles.tipsRow}
-            >
-              {[
-                { icon: 'storefront-outline', label: 'REWE: Milch, Käse' },
-                { icon: 'list-outline', label: 'Äpfel 3, Brot 2' },
-                { icon: 'pricetag-outline', label: 'Tomaten 1.49€' },
-              ].map((t, i) => (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => setText((prev) => prev ? prev + '\n' + t.label : t.label)}
-                  style={[styles.tipChip, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name={t.icon} size={12} color={theme.accent} />
-                  <Text style={[styles.tipText, { color: theme.textSub }]}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </Animated.View>
-          )}
 
           {/* ── Clear row ── */}
           {!!text && (
@@ -270,11 +213,18 @@ export default function PasteScreen({ navigation, route }) {
         <Animated.View
           entering={FadeInDown.duration(400).delay(140).springify().damping(22)}
           style={[styles.footer, {
-            backgroundColor: theme.dark ? theme.bg + 'F8' : theme.bg,
+            bottom: TAB_BAR_H,
             borderTopColor: theme.border,
-            paddingBottom: 16 + TAB_BAR_HEIGHT,
           }]}
         >
+          <LinearGradient
+            colors={theme.dark
+              ? ['rgba(8,10,13,0.0)', 'rgba(8,10,13,0.96)']
+              : ['rgba(248,248,252,0.0)', 'rgba(248,248,252,0.97)']}
+            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
           {/* Primary CTA */}
           <Animated.View style={pasteBtnStyle}>
             <TouchableOpacity
@@ -321,6 +271,7 @@ export default function PasteScreen({ navigation, route }) {
         </Animated.View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GlassBg>
   );
 }
 
@@ -352,29 +303,20 @@ const styles = StyleSheet.create({
 
   inputCardOuter: { marginBottom: 12 },
   inputCard: {
-    borderRadius: 18, borderWidth: 1.5,
-    overflow: 'hidden',
-    shadowOffset: { width: 0, height: 0 }, shadowRadius: 0, elevation: 0,
+    borderRadius: 18,
+    // No overflow:'hidden' — would break BlurView on Android (applied to GlassCard outer)
+    // No borderWidth — GlassCard already has its own 1px specular border
   },
   termBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1,
   },
-  termDots: { flexDirection: 'row', gap: 6 },
-  termDot: { width: 10, height: 10, borderRadius: 5 },
   termLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
   input: {
     minHeight: 220, padding: 16, paddingTop: 14,
     fontSize: 15, lineHeight: 24, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   inputGlowLine: { height: 2, marginHorizontal: 0 },
-
-  tipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
-  tipChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
-  },
-  tipText: { fontSize: 11, fontWeight: '600' },
 
   clearRow: { alignItems: 'flex-start', marginBottom: 4 },
   clearChip: {
@@ -383,7 +325,12 @@ const styles = StyleSheet.create({
   },
   clearText: { fontSize: 12, fontWeight: '600' },
 
-  footer: { padding: 16, paddingBottom: 20, borderTopWidth: 1, gap: 10 },
+  footer: {
+    position: 'absolute', left: 0, right: 0,
+    padding: 16, borderTopWidth: StyleSheet.hairlineWidth, gap: 10,
+    // bottom set dynamically to TAB_BAR_H — footer sits above the tab bar
+    // NO overflow:'hidden' — would clip the FadeInDown entering animation
+  },
   parseBtnOuter: { borderRadius: 18, overflow: 'hidden' },
   parseBtn: {
     height: 58, flexDirection: 'row',

@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = '@einkauf_calories';
 const FOODS_KEY = '@einkauf_saved_foods';
+const PLATES_KEY = '@einkauf_saved_plates';
 const NINETY = 90 * 24 * 60 * 60 * 1000;
 
 const CalorieContext = createContext(null);
@@ -12,6 +13,7 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 export function CalorieProvider({ children }) {
   const [entries, setEntries] = useState([]);
   const [savedFoods, setSavedFoods] = useState([]);
+  const [savedPlates, setSavedPlates] = useState([]);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((raw) => {
@@ -27,6 +29,10 @@ export function CalorieProvider({ children }) {
     AsyncStorage.getItem(FOODS_KEY).then((raw) => {
       if (!raw) return;
       try { setSavedFoods(JSON.parse(raw)); } catch (_) {}
+    });
+    AsyncStorage.getItem(PLATES_KEY).then((raw) => {
+      if (!raw) return;
+      try { setSavedPlates(JSON.parse(raw)); } catch (_) {}
     });
   }, []);
 
@@ -49,6 +55,23 @@ export function CalorieProvider({ children }) {
     setSavedFoods((prev) => {
       const next = prev.filter((f) => f.name.toLowerCase() !== name.toLowerCase());
       AsyncStorage.setItem(FOODS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const savePlate = useCallback((plate) => {
+    setSavedPlates((prev) => {
+      const deduped = prev.filter((p) => p.id !== plate.id);
+      const next = [plate, ...deduped];
+      AsyncStorage.setItem(PLATES_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const removePlate = useCallback((id) => {
+    setSavedPlates((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      AsyncStorage.setItem(PLATES_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
   }, []);
@@ -95,6 +118,7 @@ export function CalorieProvider({ children }) {
       entries, addEntry, removeEntry,
       todayEntries, todayByMeal, entriesByDate,
       savedFoods, saveFood, removeSavedFood,
+      savedPlates, savePlate, removePlate,
     }}>
       {children}
     </CalorieContext.Provider>

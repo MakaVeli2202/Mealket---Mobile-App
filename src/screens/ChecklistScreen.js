@@ -1,30 +1,35 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import GlassBg from '../components/GlassBg';
 import { useSettings } from '../context/SettingsContext';
 import { useShopping } from '../context/ShoppingContext';
 import StoreGroup from '../components/StoreGroup';
 import PriceSummary from '../components/PriceSummary';
 import ProgressBar from '../components/ProgressBar';
+import SpringPressable from '../components/SpringPressable';
 
 export default function ChecklistScreen({ navigation }) {
   const { theme, tr } = useSettings();
   const { currentList, toggleItem, updateItemPrice, moveItemToNextStore, restoreItem } = useShopping();
   const c = tr.checklist;
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
 
   if (!currentList) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
-        <View style={styles.empty}>
-          <Ionicons name="cart-outline" size={64} color={theme.accent + '60'} />
-          <Text style={[styles.emptyTitle, { color: theme.textMuted }]}>{c.noList}</Text>
-          <TouchableOpacity style={[styles.newBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('Paste')}>
-            <Text style={styles.newBtnText}>{c.createList}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <GlassBg theme={theme}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+          <View style={styles.empty}>
+            <Ionicons name="cart-outline" size={64} color={theme.accent + '60'} />
+            <Text style={[styles.emptyTitle, { color: theme.textMuted }]}>{c.noList}</Text>
+            <SpringPressable style={[styles.newBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('Paste')}>
+              <Text style={styles.newBtnText}>{c.createList}</Text>
+            </SpringPressable>
+          </View>
+        </SafeAreaView>
+      </GlassBg>
     );
   }
 
@@ -42,7 +47,7 @@ export default function ChecklistScreen({ navigation }) {
   const ListHeader = (
     <Animated.View
       entering={FadeInDown.duration(300).springify().damping(18)}
-      style={[styles.header, { backgroundColor: theme.bg }]}
+      style={[styles.header, { backgroundColor: 'transparent' }]}
     >
       {/* Title row */}
       <View style={styles.headerTop}>
@@ -76,18 +81,6 @@ export default function ChecklistScreen({ navigation }) {
       {/* Global progress bar */}
       <ProgressBar progress={globalProgress} color={progressColor} theme={theme} />
 
-      {/* Store legend */}
-      {regularStores.length > 0 && (
-        <View style={styles.legend}>
-          {regularStores.map((s, i) => (
-            <View key={i} style={[styles.legendPill, { backgroundColor: s.color }]}>
-              <Ionicons name="storefront" size={11} color={s.textColor + 'CC'} style={{ marginRight: 3 }} />
-              <Text style={[styles.legendText, { color: s.textColor }]}>{s.name || tr.storeGroup.other}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
       {/* Swipe hint */}
       <View style={[styles.swipeHint, { backgroundColor: theme.surfaceAlt, borderColor: theme.border, borderWidth: 1 }]}>
         <Ionicons name="swap-horizontal" size={14} color={theme.accent} />
@@ -97,7 +90,8 @@ export default function ChecklistScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       <FlatList
         data={allStores}
         keyExtractor={(s) => s.id || s.name || s.color}
@@ -116,12 +110,13 @@ export default function ChecklistScreen({ navigation }) {
         ListFooterComponent={
           <>
             <PriceSummary stores={allStores} />
-            <View style={{ height: 40 }} />
+            <View style={{ height: tabBarHeight + 16 }} />
           </>
         }
         contentContainerStyle={{ paddingTop: 8 }}
       />
     </SafeAreaView>
+    </GlassBg>
   );
 }
 

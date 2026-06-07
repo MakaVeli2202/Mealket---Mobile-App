@@ -4,32 +4,22 @@ import {
   StyleSheet, ScrollView, KeyboardAvoidingView,
   Platform, ActivityIndicator, FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
+import GlassBg from '../components/GlassBg';
 import { searchFood } from '../utils/openFoodFacts';
 import { searchLocalFoods, FOOD_DATABASE } from '../constants/foodDatabase';
 
-// ─── constants ───────────────────────────────────────────────────────────────
-
 const NUTRIENT_FIELDS = [
-  { key: 'kcal',    icon: 'flash-outline',    labelKey: 'kcal',   colorKey: 'accent'  },
-  { key: 'fat',     icon: 'water-outline',    labelKey: 'fat',    colorKey: 'fat'     },
-  { key: 'carbs',   icon: 'grid-outline',     labelKey: 'carbs',  colorKey: 'carbs'   },
-  { key: 'sugar',   icon: 'ellipse-outline',  labelKey: 'sugar',  colorKey: 'sugar'   },
-  { key: 'protein', icon: 'fitness-outline',  labelKey: 'protein',colorKey: 'protein' },
+  { key: 'kcal',    icon: 'flash-outline',    labelKey: 'kcal',    colorKey: 'accent'  },
+  { key: 'fat',     icon: 'water-outline',    labelKey: 'fat',     colorKey: 'fat'     },
+  { key: 'carbs',   icon: 'grid-outline',     labelKey: 'carbs',   colorKey: 'carbs'   },
+  { key: 'sugar',   icon: 'ellipse-outline',  labelKey: 'sugar',   colorKey: 'sugar'   },
+  { key: 'protein', icon: 'fitness-outline',  labelKey: 'protein', colorKey: 'protein' },
 ];
-
-const TAB_DEFS = [
-  { id: 'search', labelKey: 'search',  icon: 'search-outline'  },
-  { id: 'camera', labelKey: 'camera',  icon: 'camera-outline'  },
-  { id: 'barcode', labelKey: 'barcode', icon: 'barcode-outline' },
-  { id: 'manual', labelKey: 'manual',  icon: 'create-outline'  },
-];
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function numVal(s) {
   return parseFloat(String(s).replace(',', '.')) || 0;
@@ -46,8 +36,6 @@ function prefillToState(p) {
   };
 }
 
-// ─── sub-components ──────────────────────────────────────────────────────────
-
 function SearchResultItem({ item, onAdd, theme }) {
   return (
     <View style={[srStyles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -60,12 +48,7 @@ function SearchResultItem({ item, onAdd, theme }) {
       {item.kcalPer100g != null && (
         <Text style={[srStyles.kcal, { color: theme.accent }]}>{item.kcalPer100g} kcal</Text>
       )}
-      <TouchableOpacity
-        style={[srStyles.addBtn, { backgroundColor: theme.accent }]}
-        onPress={() => onAdd(item)}
-        hitSlop={8}
-        activeOpacity={0.75}
-      >
+      <TouchableOpacity style={[srStyles.addBtn, { backgroundColor: theme.accent }]} onPress={() => onAdd(item)} hitSlop={8} activeOpacity={0.75}>
         <Ionicons name="add" size={20} color="#FFF" />
       </TouchableOpacity>
     </View>
@@ -73,36 +56,29 @@ function SearchResultItem({ item, onAdd, theme }) {
 }
 
 const srStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8,
-  },
-  info:  { flex: 1 },
-  name:  { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  sub:   { fontSize: 11, fontWeight: '500' },
-  kcal:  { fontSize: 13, fontWeight: '700', marginRight: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8 },
+  info:   { flex: 1 },
+  name:   { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  sub:    { fontSize: 11, fontWeight: '500' },
+  kcal:   { fontSize: 13, fontWeight: '700', marginRight: 4 },
   addBtn: { borderRadius: 20, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 });
 
-// ─── main screen ─────────────────────────────────────────────────────────────
-
 export default function AddFoodScreen({ navigation, route }) {
   const { theme, tr } = useSettings();
-  const { addEntry, todayByMeal, entries, savedFoods } = useCalories();
+  const { addEntry, todayByMeal, entries, savedFoods, savedPlates } = useCalories();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
 
-  const meal    = route.params?.meal ?? 'snack';
+  const meal      = route.params?.meal ?? 'snack';
   const mealLabel = tr.meals[meal] ?? meal;
 
-  // ── tab state ──
-  const [activeTab, setActiveTab] = useState('search');
+  const [isManual, setIsManual] = useState(false);
+  const [query, setQuery]         = useState('');
+  const [results, setResults]     = useState([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef               = useRef(null);
 
-  // ── search state ──
-  const [query, setQuery]           = useState('');
-  const [results, setResults]       = useState([]);
-  const [searching, setSearching]   = useState(false);
-  const debounceRef                 = useRef(null);
-
-  // ── manual-entry state ──
   const [name,    setName]    = useState('');
   const [kcal,    setKcal]    = useState('');
   const [fat,     setFat]     = useState('');
@@ -111,12 +87,10 @@ export default function AddFoodScreen({ navigation, route }) {
   const [protein, setProtein] = useState('');
   const [amountG, setAmountG] = useState('100');
 
-  // ── persist last amount ──
   useEffect(() => {
-    AsyncStorage.getItem('@einkauf_last_amount').then((v) => {
-      if (v) setAmountG(v);
-    }).catch(() => {});
+    AsyncStorage.getItem('@einkauf_last_amount').then((v) => { if (v) setAmountG(v); }).catch(() => {});
   }, []);
+
   const saveAmount = useCallback((v) => {
     setAmountG(v);
     AsyncStorage.setItem('@einkauf_last_amount', v).catch(() => {});
@@ -125,427 +99,345 @@ export default function AddFoodScreen({ navigation, route }) {
   const stateMap  = { kcal, fat, carbs, sugar, protein };
   const setterMap = { kcal: setKcal, fat: setFat, carbs: setCarbs, sugar: setSugar, protein: setProtein };
 
-  // ── derived values ──
-  const kcalNum   = numVal(kcal);
-  const amountNum = numVal(amountG);
+  const kcalNum      = numVal(kcal);
+  const amountNum    = numVal(amountG);
   const totalKcal    = Math.round((amountNum / 100) * kcalNum);
   const totalFat     = Math.round((amountNum / 100) * numVal(fat)     * 10) / 10;
   const totalCarbs   = Math.round((amountNum / 100) * numVal(carbs)   * 10) / 10;
-  const totalProtein = Math.round((amountNum / 100) * numVal(protein)  * 10) / 10;
-  const canSave = name.trim().length > 0 && kcalNum > 0 && amountNum > 0;
+  const totalProtein = Math.round((amountNum / 100) * numVal(protein) * 10) / 10;
+  const canSave      = name.trim().length > 0 && kcalNum > 0 && amountNum > 0;
+  const mealCount    = todayByMeal?.[meal]?.length ?? 0;
 
-  // count of entries already in this meal today
-  const mealCount = todayByMeal?.[meal]?.length ?? 0;
-
-  // ── prefill from route.params (camera / barcode return) ──
   useEffect(() => {
     if (route.params?.prefill) {
       const s = prefillToState(route.params.prefill);
-      setName(s.name);
-      setKcal(s.kcal);
-      setFat(s.fat);
-      setCarbs(s.carbs);
-      setSugar(s.sugar);
-      setProtein(s.protein);
-      setActiveTab('manual');
+      setName(s.name); setKcal(s.kcal); setFat(s.fat);
+      setCarbs(s.carbs); setSugar(s.sugar); setProtein(s.protein);
+      setIsManual(true);
     }
   }, [route.params?.prefill]);
 
-  // ── recently logged foods (unique names, newest first, max 10) ──
   const recentFoods = useMemo(() => {
     const seen = new Set();
     return entries
       .filter((e) => { if (seen.has(e.name)) return false; seen.add(e.name); return true; })
       .slice(0, 10)
-      .map((e) => ({
-        name: e.name,
-        brand: null,
-        serving: `${e.amountG}g`,
-        kcalPer100g: e.kcalPer100g,
-        fatPer100g: e.fatPer100g,
-        carbsPer100g: e.carbsPer100g,
-        sugarPer100g: e.sugarPer100g,
-        proteinPer100g: e.proteinPer100g,
-      }));
+      .map((e) => ({ name: e.name, brand: null, serving: `${e.amountG}g`, kcalPer100g: e.kcalPer100g, fatPer100g: e.fatPer100g, carbsPer100g: e.carbsPer100g, sugarPer100g: e.sugarPer100g, proteinPer100g: e.proteinPer100g }));
   }, [entries]);
 
-  // ── debounced search (local + remote) ──
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const q = query.trim();
-    if (!q || q.length < 1) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    // immediate local search (database + saved foods)
+    const q = query.trim().toLowerCase();
+    if (!q) { setResults([]); setSearching(false); return; }
     const local = [...searchLocalFoods(q), ...savedFoods.filter(
       (f) => f.name.toLowerCase().includes(q) || (f.brand && f.brand.toLowerCase().includes(q))
     )];
     setResults(local);
     if (q.length < 2) return;
-    // debounced remote search
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
         const remote = await searchFood(q);
-        // merge: local first (deduplicated by name)
         const localNames = new Set(local.map((f) => f.name.toLowerCase()));
-        const merged = [...local, ...remote.filter((r) => !localNames.has(r.name.toLowerCase()))];
-        setResults(merged);
-      } catch (_) {
-        // keep local results on network error
-      } finally {
-        setSearching(false);
-      }
+        setResults([...local, ...remote.filter((r) => !localNames.has(r.name.toLowerCase()))]);
+      } catch (_) {} finally { setSearching(false); }
     }, 600);
     return () => clearTimeout(debounceRef.current);
   }, [query, savedFoods]);
 
-  // ── handlers ──
   const applyPrefill = useCallback((item) => {
     const s = prefillToState(item);
-    setName(s.name);
-    setKcal(s.kcal);
-    setFat(s.fat);
-    setCarbs(s.carbs);
-    setSugar(s.sugar);
-    setProtein(s.protein);
-    setAmountG('100');
-    saveAmount('100');
-    setActiveTab('manual');
+    setName(s.name); setKcal(s.kcal); setFat(s.fat);
+    setCarbs(s.carbs); setSugar(s.sugar); setProtein(s.protein);
+    setAmountG('100'); saveAmount('100');
+    setIsManual(true);
   }, []);
+
+  const handleAddPlate = useCallback((plate) => {
+    addEntry({
+      name: plate.name,
+      meal,
+      kcalPer100g: plate.kcalPer100g,
+      fatPer100g: plate.fatPer100g,
+      carbsPer100g: plate.carbsPer100g,
+      sugarPer100g: plate.sugarPer100g ?? 0,
+      proteinPer100g: plate.proteinPer100g,
+      amountG: plate.totalG || 100,
+    });
+  }, [addEntry, meal]);
 
   const handleSave = () => {
     if (!canSave) return;
-    addEntry({
-      name: name.trim(),
-      meal,
-      kcalPer100g:    kcalNum,
-      fatPer100g:     numVal(fat),
-      carbsPer100g:   numVal(carbs),
-      sugarPer100g:   numVal(sugar),
-      proteinPer100g: numVal(protein),
-      amountG:        amountNum,
-    });
+    addEntry({ name: name.trim(), meal, kcalPer100g: kcalNum, fatPer100g: numVal(fat), carbsPer100g: numVal(carbs), sugarPer100g: numVal(sugar), proteinPer100g: numVal(protein), amountG: amountNum });
     navigation.goBack();
   };
 
-  const handleTabPress = (tabId) => {
-    if (tabId === 'camera') {
-      navigation.navigate('CameraLabel');
-      return;
-    }
-    if (tabId === 'barcode') {
-      navigation.navigate('BarcodeScanner');
-      return;
-    }
-    setActiveTab(tabId);
-  };
+  // ── render search content ─────────────────────────────────────────────────
 
-  // ── tab content renderers ──
-  const renderSearch = () => (
-    <View style={{ flex: 1 }}>
-      {/* search bar */}
-      <View style={[tabContent.searchBarWrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Ionicons name="search-outline" size={18} color={theme.textMuted} />
-        <TextInput
-          style={[tabContent.searchInput, { color: theme.text }]}
-          value={query}
-          onChangeText={setQuery}
-          placeholder={tr.meals.searchPlaceholder(mealLabel)}
-          placeholderTextColor={theme.textMuted}
-          autoCorrect={false}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-        />
-        {searching && <ActivityIndicator size="small" color={theme.accent} />}
-      </View>
-
-      {/* results / empty state */}
-      {!query.trim() ? (
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {recentFoods.length > 0 && (
-            <>
-              <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>{tr.meals.recentlyUsed}</Text>
-              {recentFoods.map((item, i) => (
-                <SearchResultItem key={`r${i}`} item={item} onAdd={applyPrefill} theme={theme} />
-              ))}
-            </>
-          )}
-          {savedFoods.length > 0 && (
-            <>
-              <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>{tr.meals.myFoods}</Text>
-              {savedFoods.map((item, i) => (
-                <SearchResultItem key={`s${i}`} item={item} onAdd={applyPrefill} theme={theme} />
-              ))}
-            </>
-          )}
-          <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>{tr.meals.suggestions}</Text>
-          {FOOD_DATABASE.slice(0, 20).map((item, i) => (
-            <SearchResultItem key={`db${i}`} item={item} onAdd={applyPrefill} theme={theme} />
-          ))}
-        </ScrollView>
-      ) : query.trim().length < 1 ? null
-      : searching && results.length === 0 ? (
-        <View style={tabContent.emptyState}>
-          <ActivityIndicator color={theme.accent} />
+  const renderSearchContent = () => {
+    const plates = savedPlates || [];
+    if (query.trim()) {
+      if (searching && results.length === 0) return (
+        <View style={ss.emptyState}><ActivityIndicator color={theme.accent} /></View>
+      );
+      if (results.length === 0) return (
+        <View style={ss.emptyState}>
+          <Ionicons name="alert-circle-outline" size={36} color={theme.textMuted} style={{ opacity: 0.4 }} />
+          <Text style={[ss.emptyText, { color: theme.textMuted }]}>{tr.meals.noResults}</Text>
         </View>
-      ) : results.length === 0 ? (
-        <View style={tabContent.emptyState}>
-          <Ionicons name="alert-circle-outline" size={40} color={theme.textMuted} style={{ opacity: 0.4 }} />
-          <Text style={[tabContent.emptyText, { color: theme.textMuted }]}>{tr.meals.noResults}</Text>
-        </View>
-      ) : (
+      );
+      return (
         <FlatList
           data={results}
           keyExtractor={(_, i) => String(i)}
-          renderItem={({ item }) => (
-            <SearchResultItem item={item} onAdd={applyPrefill} theme={theme} />
-          )}
+          renderItem={({ item }) => <SearchResultItem item={item} onAdd={applyPrefill} theme={theme} />}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 80 }}
           ListFooterComponent={searching ? <ActivityIndicator color={theme.accent} style={{ marginTop: 8 }} /> : null}
         />
-      )}
-    </View>
-  );
+      );
+    }
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabBarHeight + 80 }}>
+        {plates.length > 0 && (
+          <>
+            <View style={ss.sectionRow}>
+              <Text style={[ss.sectionHeader, { color: theme.textMuted }]}>MY PLATES</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('CreatePlate')} hitSlop={8}>
+                <Text style={[ss.sectionLink, { color: theme.accent }]}>+ New</Text>
+              </TouchableOpacity>
+            </View>
+            {plates.map((plate) => (
+              <View key={plate.id} style={[srStyles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View style={[ss.plateIcon, { backgroundColor: theme.accent + '20' }]}>
+                  <Ionicons name="restaurant-outline" size={16} color={theme.accent} />
+                </View>
+                <View style={srStyles.info}>
+                  <Text style={[srStyles.name, { color: theme.text }]} numberOfLines={1}>{plate.name}</Text>
+                  <Text style={[srStyles.sub, { color: theme.textMuted }]}>{plate.totalKcal} kcal · {plate.ingredients?.length ?? 0} ingredients</Text>
+                </View>
+                <TouchableOpacity style={[srStyles.addBtn, { backgroundColor: theme.accent }]} onPress={() => handleAddPlate(plate)} hitSlop={8} activeOpacity={0.75}>
+                  <Ionicons name="add" size={20} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </>
+        )}
+
+        {recentFoods.length > 0 && (
+          <>
+            <Text style={[ss.sectionHeader, { color: theme.textMuted }]}>{tr.meals.recentlyUsed}</Text>
+            {recentFoods.map((item, i) => <SearchResultItem key={`r${i}`} item={item} onAdd={applyPrefill} theme={theme} />)}
+          </>
+        )}
+        {savedFoods.length > 0 && (
+          <>
+            <Text style={[ss.sectionHeader, { color: theme.textMuted }]}>{tr.meals.myFoods}</Text>
+            {savedFoods.map((item, i) => <SearchResultItem key={`s${i}`} item={item} onAdd={applyPrefill} theme={theme} />)}
+          </>
+        )}
+        <View style={ss.sectionRow}>
+          <Text style={[ss.sectionHeader, { color: theme.textMuted }]}>{tr.meals.suggestions}</Text>
+          {plates.length === 0 && (
+            <TouchableOpacity onPress={() => navigation.navigate('CreatePlate')} hitSlop={8}>
+              <Text style={[ss.sectionLink, { color: theme.accent }]}>+ New plate</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {FOOD_DATABASE.slice(0, 20).map((item, i) => <SearchResultItem key={`db${i}`} item={item} onAdd={applyPrefill} theme={theme} />)}
+      </ScrollView>
+    );
+  };
+
+  // ── render manual form ────────────────────────────────────────────────────
 
   const renderManual = () => (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 14, paddingBottom: 24 }}
-    >
+    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: tabBarHeight + 80 }}>
       {/* food name */}
-      <View style={[card.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[card.label, { color: theme.textMuted }]}>{tr.calories.foodName}</Text>
+      <View style={[mf.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[mf.label, { color: theme.textMuted }]}>{tr.calories.foodName}</Text>
         <TextInput
-          style={[card.nameInput, { color: theme.text, borderColor: theme.border }]}
-          value={name}
-          onChangeText={setName}
+          style={[mf.nameInput, { color: theme.text, borderColor: theme.border }]}
+          value={name} onChangeText={setName}
           placeholder={tr.calories.foodNamePlaceholder}
           placeholderTextColor={theme.textMuted}
-          autoCorrect={false}
-          returnKeyType="next"
+          autoCorrect={false} returnKeyType="next"
         />
       </View>
 
-      {/* nutrition per 100g */}
-      <View style={[card.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[card.label, { color: theme.textMuted }]}>{tr.calories.per100g}</Text>
-        <View style={card.nutriGrid}>
+      {/* per 100g */}
+      <View style={[mf.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[mf.label, { color: theme.textMuted }]}>{tr.calories.per100g}</Text>
+        <View style={mf.nutriGrid}>
           {NUTRIENT_FIELDS.map(({ key, icon, labelKey, colorKey }) => (
-            <View
-              key={key}
-              style={[card.nutriField, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-            >
-              <Ionicons name={icon} size={14} color={theme[colorKey] || theme.accent} style={{ marginBottom: 4 }} />
+            <View key={key} style={[mf.nutriField, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+              <Ionicons name={icon} size={13} color={theme[colorKey] || theme.accent} />
               <TextInput
-                style={[card.nutriInput, { color: theme.text }]}
-                value={stateMap[labelKey]}
-                onChangeText={setterMap[labelKey]}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor={theme.textMuted}
-                selectTextOnFocus
+                style={[mf.nutriInput, { color: theme.text }]}
+                value={stateMap[labelKey]} onChangeText={setterMap[labelKey]}
+                keyboardType="decimal-pad" placeholder="0"
+                placeholderTextColor={theme.textMuted} selectTextOnFocus
               />
-              <Text style={[card.nutriLabel, { color: theme.textMuted }]}>{tr.meals.nutrientFields[labelKey]}</Text>
+              <Text style={[mf.nutriLabel, { color: theme.textMuted }]}>{tr.meals.nutrientFields[labelKey]}</Text>
             </View>
           ))}
         </View>
       </View>
 
       {/* amount */}
-      <View style={[card.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[card.label, { color: theme.textMuted }]}>{tr.calories.amountConsumed}</Text>
-        <View style={card.amountRow}>
+      <View style={[mf.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[mf.label, { color: theme.textMuted }]}>{tr.calories.amountConsumed}</Text>
+        <View style={mf.amountRow}>
+          {['50','100','150','200'].map((v) => (
+            <TouchableOpacity
+              key={v}
+              style={[mf.amountChip, { backgroundColor: amountG === v ? theme.accent : theme.surfaceAlt, borderColor: amountG === v ? theme.accent : theme.border }]}
+              onPress={() => saveAmount(v)}
+              activeOpacity={0.7}
+            >
+              <Text style={[mf.amountChipText, { color: amountG === v ? '#FFF' : theme.textMuted }]}>{v}g</Text>
+            </TouchableOpacity>
+          ))}
           <TextInput
-            style={[
-              card.amountInput,
-              { color: theme.text, borderColor: theme.accent, backgroundColor: theme.accentLight },
-            ]}
-            value={amountG}
-            onChangeText={saveAmount}
-            keyboardType="decimal-pad"
-            placeholder="100"
-            placeholderTextColor={theme.textMuted}
-            selectTextOnFocus
+            style={[mf.amountInput, { color: theme.text, borderColor: theme.accent, backgroundColor: theme.accentLight }]}
+            value={amountG} onChangeText={saveAmount}
+            keyboardType="decimal-pad" placeholder="100"
+            placeholderTextColor={theme.textMuted} selectTextOnFocus
           />
-          <Text style={[card.amountUnit, { color: theme.textMuted }]}>g</Text>
+          <Text style={[mf.amountUnit, { color: theme.textMuted }]}>g</Text>
         </View>
       </View>
 
-      {/* live result card */}
+      {/* live result */}
       {kcalNum > 0 && amountNum > 0 && (
-        <View style={[card.resultCard, { backgroundColor: theme.accent }]}>
-          <Text style={card.resultKcal}>{totalKcal}</Text>
-          <Text style={card.resultKcalLabel}>kcal</Text>
+        <View style={[mf.resultCard, { backgroundColor: theme.accent }]}>
+          <Text style={mf.resultKcal}>{totalKcal}</Text>
+          <Text style={mf.resultKcalLabel}>kcal</Text>
           {(totalFat > 0 || totalCarbs > 0 || totalProtein > 0) && (
-              <Text style={card.resultMacros}>
-                {tr.meals.macrosLine(totalFat, totalCarbs, totalProtein)}
-              </Text>
+            <Text style={mf.resultMacros}>{tr.meals.macrosLine(totalFat, totalCarbs, totalProtein)}</Text>
           )}
         </View>
       )}
     </ScrollView>
   );
 
-  // ─── render ───────────────────────────────────────────────────────────────
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
         {/* ── Header ── */}
         <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.surface }]}>
-          {/* counter bubble */}
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.headerBtn}>
+            <Ionicons name="arrow-back" size={22} color={theme.text} />
+          </TouchableOpacity>
           <View style={[styles.counterBubble, { backgroundColor: theme.accent }]}>
             <Text style={styles.counterText}>{mealCount}</Text>
           </View>
-
-          {/* meal name */}
           <Text style={[styles.headerTitle, { color: theme.text }]}>{mealLabel}</Text>
+          {isManual && canSave ? (
+            <TouchableOpacity onPress={handleSave} style={[styles.doneBtn, { backgroundColor: theme.accent }]} hitSlop={4}>
+              <Ionicons name="checkmark" size={18} color="#FFF" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
+        </View>
 
-          {/* done checkmark — saves if on manual tab with valid data, else goes back */}
-          <TouchableOpacity
-            onPress={activeTab === 'manual' && canSave ? handleSave : () => navigation.goBack()}
-            style={[
-              styles.doneBtn,
-              { backgroundColor: activeTab === 'manual' && canSave ? theme.accent : theme.surfaceAlt },
-            ]}
-            hitSlop={4}
-          >
-            <Ionicons
-              name="checkmark"
-              size={18}
-              color={activeTab === 'manual' && canSave ? '#FFF' : theme.textMuted}
+        {/* ── Search bar + mode controls ── */}
+        <View style={[styles.searchArea, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+          <View style={[styles.searchBar, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
+            <Ionicons name="search-outline" size={17} color={theme.textMuted} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.text }]}
+              value={isManual ? '' : query}
+              onChangeText={(t) => { if (!isManual) setQuery(t); }}
+              onFocus={() => { if (isManual) setIsManual(false); }}
+              placeholder={tr.meals.searchPlaceholder(mealLabel)}
+              placeholderTextColor={theme.textMuted}
+              autoCorrect={false}
+              editable={!isManual}
             />
+            {searching && !isManual && <ActivityIndicator size="small" color={theme.accent} />}
+          </View>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]} onPress={() => navigation.navigate('CameraLabel')} activeOpacity={0.75}>
+            <Ionicons name="camera-outline" size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]} onPress={() => navigation.navigate('BarcodeScanner')} activeOpacity={0.75}>
+            <Ionicons name="barcode-outline" size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.manualPill, { backgroundColor: isManual ? theme.accent : theme.surfaceAlt, borderColor: isManual ? theme.accent : theme.border }]}
+            onPress={() => setIsManual((v) => !v)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="create-outline" size={15} color={isManual ? '#FFF' : theme.textMuted} />
           </TouchableOpacity>
         </View>
 
-        {/* ── Tab bar ── */}
-        <View style={[styles.tabBar, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarInner}>
-            {TAB_DEFS.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[
-                    styles.tabPill,
-                    {
-                      backgroundColor: isActive ? theme.accent : theme.surfaceAlt,
-                      borderColor: isActive ? theme.accent : theme.border,
-                    },
-                  ]}
-                  onPress={() => handleTabPress(tab.id)}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons
-                    name={tab.icon}
-                    size={15}
-                    color={isActive ? '#FFF' : theme.textMuted}
-                  />
-                  <Text style={[styles.tabLabel, { color: isActive ? '#FFF' : theme.textMuted }]}>
-                    {tr.meals[tab.labelKey]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        {/* ── Content ── */}
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+          {isManual ? renderManual() : renderSearchContent()}
         </View>
 
-        {/* ── Tab content ── */}
-        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 14 }}>
-          {activeTab === 'search' && renderSearch()}
-          {activeTab === 'manual' && renderManual()}
-        </View>
-
-        {/* ── Fertig button ── */}
-        <View style={[styles.footerWrap, { borderTopColor: theme.border, backgroundColor: theme.surface }]}>
-          <TouchableOpacity
-            style={[styles.fertigBtn, { backgroundColor: theme.accent }]}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.fertigText}>{tr.meals.done}</Text>
+        {/* ── Footer ── */}
+        <View style={[styles.footerWrap, { borderTopColor: theme.border, backgroundColor: theme.surface, paddingBottom: tabBarHeight + 8 }]}>
+          <TouchableOpacity style={[styles.fertigBtn, { backgroundColor: isManual && canSave ? theme.accent : theme.accent }]} onPress={isManual && canSave ? handleSave : () => navigation.goBack()} activeOpacity={0.8}>
+            <Text style={styles.fertigText}>{isManual && canSave ? tr.meals.addFood ?? 'Add' : tr.meals.done}</Text>
           </TouchableOpacity>
         </View>
 
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GlassBg>
   );
 }
 
-// ─── styles ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
-  },
-  counterBubble: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  counterText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  doneBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1 },
+  headerBtn: { padding: 2 },
+  counterBubble: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  counterText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  doneBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 
-  tabBar: { borderBottomWidth: 1 },
-  tabBarInner: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  tabPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1,
-  },
-  tabLabel: { fontSize: 13, fontWeight: '600' },
+  searchArea: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
+  searchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9 },
+  searchInput: { flex: 1, fontSize: 14, fontWeight: '500', padding: 0 },
+  iconBtn: { width: 38, height: 38, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  manualPill: { width: 38, height: 38, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
-  footerWrap: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
-  fertigBtn: {
-    borderRadius: 16, paddingVertical: 15,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  fertigText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  footerWrap: { paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1 },
+  fertigBtn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  fertigText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
 });
 
-const tabContent = StyleSheet.create({
-  searchBarWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10,
-    marginBottom: 14,
-  },
-  searchInput: { flex: 1, fontSize: 15, fontWeight: '500' },
+const ss = StyleSheet.create({
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 60 },
   emptyText: { fontSize: 14, fontWeight: '500', opacity: 0.7 },
-  sectionHeader: {
-    fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
-    letterSpacing: 0.8, marginBottom: 8, marginTop: 4,
-  },
+  sectionHeader: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, marginTop: 4 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginTop: 4 },
+  sectionLink: { fontSize: 13, fontWeight: '700' },
+  plateIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
 
-const card = StyleSheet.create({
-  wrap: { borderRadius: 20, borderWidth: 1, padding: 18, gap: 14 },
+const mf = StyleSheet.create({
+  card: { borderRadius: 18, borderWidth: 1, padding: 16, gap: 12 },
   label: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
-  nameInput: { borderWidth: 1.5, borderRadius: 12, padding: 14, fontSize: 16, fontWeight: '500' },
-  nutriGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  nutriField: { width: '47%', borderRadius: 12, borderWidth: 1, padding: 12, alignItems: 'flex-start', gap: 2 },
-  nutriInput: { fontSize: 22, fontWeight: '800', width: '100%' },
+  nameInput: { borderWidth: 1.5, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, fontWeight: '500' },
+  nutriGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  nutriField: { width: '47%', borderRadius: 11, borderWidth: 1, padding: 10, alignItems: 'flex-start', gap: 2 },
+  nutriInput: { fontSize: 18, fontWeight: '800', width: '100%', padding: 0 },
   nutriLabel: { fontSize: 10, fontWeight: '600' },
-  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  amountInput: {
-    flex: 1, borderWidth: 2, borderRadius: 14,
-    paddingVertical: 14, paddingHorizontal: 12,
-    fontSize: 24, fontWeight: '800', textAlign: 'center',
-  },
-  amountUnit: { fontSize: 18, fontWeight: '700', minWidth: 20 },
-  resultCard: { borderRadius: 20, padding: 20, alignItems: 'center', gap: 4 },
-  resultKcal: { fontSize: 48, fontWeight: '900', color: '#FFF', letterSpacing: -2 },
-  resultKcalLabel: { fontSize: 16, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginTop: -8 },
-  resultMacros: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4, fontWeight: '500' },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  amountChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
+  amountChipText: { fontSize: 12, fontWeight: '700' },
+  amountInput: { width: 70, borderWidth: 2, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 10, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  amountUnit: { fontSize: 15, fontWeight: '700' },
+  resultCard: { borderRadius: 18, padding: 16, alignItems: 'center', gap: 2 },
+  resultKcal: { fontSize: 40, fontWeight: '900', color: '#FFF', letterSpacing: -2 },
+  resultKcalLabel: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginTop: -6 },
+  resultMacros: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2, fontWeight: '500' },
 });

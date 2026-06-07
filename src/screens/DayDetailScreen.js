@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
+import GlassBg from '../components/GlassBg';
 
 // ─── Meal metadata ────────────────────────────────────────────────────────────
 const MEAL_META = {
@@ -183,6 +184,8 @@ function MealSection({ mealKey, entries, theme, tr, onDelete, navigation }) {
 export default function DayDetailScreen({ navigation }) {
   const { theme, calorieGoal, language, tr } = useSettings();
   const { todayEntries, todayByMeal, removeEntry } = useCalories();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
 
   const totalKcal    = useMemo(() => todayEntries.reduce((s, e) => s + (e.calories  || 0), 0), [todayEntries]);
   const totalCarbs   = useMemo(() => todayEntries.reduce((s, e) => s + (e.carbsG    || 0), 0), [todayEntries]);
@@ -215,7 +218,8 @@ export default function DayDetailScreen({ navigation }) {
   const c = tr.calories;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       {/* ── Header ── */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
@@ -228,7 +232,7 @@ export default function DayDetailScreen({ navigation }) {
         <View style={{ width: 42 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}>
 
         {/* ── Calorie summary ── */}
         <View style={[styles.card, { marginTop: 16, backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -384,6 +388,7 @@ export default function DayDetailScreen({ navigation }) {
         ))}
       </ScrollView>
     </SafeAreaView>
+    </GlassBg>
   );
 }
 

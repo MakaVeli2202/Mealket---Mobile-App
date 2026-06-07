@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput,
+  TextInput, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
 import { useShopping } from '../context/ShoppingContext';
+import GlassBg from '../components/GlassBg';
 
 // ── Editable item row ────────────────────────────────────────────────────────
 function EditableItem({ item, storeIdx, onUpdate, onRemove, theme, index }) {
@@ -155,6 +156,7 @@ export default function ReviewScreen({ navigation, route }) {
   const { parsedList } = route.params;
   const { loadList, saveToHistory } = useShopping();
   const [stores, setStores] = useState(parsedList.stores);
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
 
   const removeItem = (storeIndex, itemId) => {
     setStores((prev) =>
@@ -224,12 +226,13 @@ export default function ReviewScreen({ navigation, route }) {
   );
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: theme.bg }]}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={[styles.root, { backgroundColor: 'transparent' }]}>
       <FlatList
         data={stores}
         keyExtractor={(_, i) => i.toString()}
         ListHeaderComponent={ListHeader}
-        contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarHeight + 140 }]}
         showsVerticalScrollIndicator={false}
         renderItem={({ item: storeData, index: si }) => {
           const storeIdx = stores.indexOf(storeData);
@@ -278,7 +281,7 @@ export default function ReviewScreen({ navigation, route }) {
       {/* ── Confirm footer ── */}
       <Animated.View
         entering={FadeInDown.duration(350).delay(200).springify().damping(20)}
-        style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}
+        style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border, paddingBottom: tabBarHeight + 8 }]}
       >
         <View style={styles.footerSummary}>
           <View style={[styles.footerStat, { backgroundColor: theme.surfaceAlt }]}>
@@ -322,6 +325,7 @@ export default function ReviewScreen({ navigation, route }) {
         </TouchableOpacity>
       </Animated.View>
     </SafeAreaView>
+    </GlassBg>
   );
 }
 
@@ -412,7 +416,7 @@ const styles = StyleSheet.create({
 
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 16, paddingBottom: 32, borderTopWidth: 1, gap: 10,
+    padding: 16, borderTopWidth: 1, gap: 10,
   },
   footerSummary: { flexDirection: 'row', gap: 8 },
   footerStat: {

@@ -6,12 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
+import GlassBg from '../components/GlassBg';
 
 export default function SettingsScreen({ navigation }) {
   const {
     theme, tr, isDark, toggleDark, language, setLanguage,
     calorieGoal, setCalorieGoal, geminiKey, setGeminiKey,
   } = useSettings();
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
   const s = tr.settings;
 
   const [goalInput, setGoalInput] = useState(String(calorieGoal));
@@ -24,9 +26,10 @@ export default function SettingsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 24 }]} keyboardShouldPersistTaps="handled">
 
           {/* Back + header row */}
           <View style={styles.topRow}>
@@ -154,6 +157,7 @@ export default function SettingsScreen({ navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GlassBg>
   );
 }
 
@@ -178,7 +182,7 @@ function LangOption({ label, flag, selected, onPress, theme }) {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 16, paddingBottom: 40 },
+  scroll: { padding: 16 },
   topRow: {
     flexDirection: 'row', alignItems: 'center',
     marginBottom: 20, marginTop: 4,

@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import { useShopping } from '../context/ShoppingContext';
+import GlassBg from '../components/GlassBg';
 
 function formatDate(iso, lang) {
   const d = new Date(iso);
@@ -16,6 +17,7 @@ function formatDate(iso, lang) {
 export default function HistoryScreen({ navigation }) {
   const { theme, tr, language } = useSettings();
   const { history, deleteFromHistory, loadList } = useShopping();
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
   const h = tr.history;
 
   const handleOpen = (list) => {
@@ -32,7 +34,7 @@ export default function HistoryScreen({ navigation }) {
 
   if (!history.length) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+      <GlassBg theme={theme}><SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>{h.title}</Text>
         </View>
@@ -42,12 +44,13 @@ export default function HistoryScreen({ navigation }) {
           <Text style={[styles.emptyDesc, { color: theme.textMuted }]}>{h.emptyDesc}</Text>
           <Text style={[styles.autoDelete, { color: theme.textMuted }]}>{h.autoDelete}</Text>
         </View>
-      </SafeAreaView>
+      </SafeAreaView></GlassBg>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       <FlatList
         data={history}
         keyExtractor={(item) => item.id}
@@ -103,9 +106,10 @@ export default function HistoryScreen({ navigation }) {
             <Text style={[styles.autoDeleteNote, { color: theme.textMuted }]}>{h.autoDelete}</Text>
           </View>
         }
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
       />
     </SafeAreaView>
+    </GlassBg>
   );
 }
 

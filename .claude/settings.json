@@ -45,7 +45,14 @@
       "Bash(node -e \"require\\('./node_modules/expo-clipboard/package.json'\\); console.log\\('installed'\\)\")",
       "Bash(git commit -m ' *)",
       "Bash(eas build *)",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(git diff *)",
+      "Bash(git push *)",
+      "Bash(Start-Sleep -Seconds 12)",
+      "Bash(Get-Content \"C:\\\\Users\\\\mmaha\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--VS-Code-Einkauf\\\\eb79c078-e1f8-449c-adc7-38dad332b145\\\\tasks\\\\bx3js3r48.output\")",
+      "PowerShell($env:LOCALAPPDATA; ls \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\" -ErrorAction SilentlyContinue | Select-Object Name; ls \"C:\\\\Android\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "Bash(wsl --status)",
+      "Bash(grep -v \"//\\\\|import\\\\|style\\\\|color\\\\|icon\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\mmaha\\Downloads"

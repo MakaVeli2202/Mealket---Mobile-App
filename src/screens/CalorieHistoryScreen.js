@@ -1,11 +1,12 @@
 import React from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
+import GlassBg from '../components/GlassBg';
 
 function DateSection({ date, entries, theme, c, onRemove, language }) {
   const totalKcal = entries.reduce((s, e) => s + (e.calories || 0), 0);
@@ -66,12 +67,14 @@ function DateSection({ date, entries, theme, c, onRemove, language }) {
 export default function CalorieHistoryScreen({ navigation }) {
   const { theme, tr, language } = useSettings();
   const { entriesByDate, removeEntry } = useCalories();
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
   const c = tr.calories;
 
   const sortedDates = Object.keys(entriesByDate).sort((a, b) => b.localeCompare(a));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+    <GlassBg theme={theme}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -100,10 +103,11 @@ export default function CalorieHistoryScreen({ navigation }) {
               language={language}
             />
           )}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
         />
       )}
     </SafeAreaView>
+    </GlassBg>
   );
 }
 

@@ -16,10 +16,7 @@ const NOT_FOUND_STORE = {
 const ShoppingContext = createContext(null);
 
 function recalcStore(store) {
-  // subtotal = only checked items so totals reflect what you're actually paying
-  const subtotal = store.items
-    .filter((i) => i.checked)
-    .reduce((s, i) => Math.round((s + i.subtotal) * 100) / 100, 0);
+  const subtotal = store.items.reduce((s, i) => Math.round((s + i.subtotal) * 100) / 100, 0);
   const checkedCount = store.items.filter((i) => i.checked).length;
   return { ...store, subtotal, checkedCount };
 }

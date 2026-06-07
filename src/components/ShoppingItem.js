@@ -205,7 +205,7 @@ export default function ShoppingItem({
                 onChangeText={handlePriceChange}
                 onBlur={handlePriceBlur}
                 keyboardType="decimal-pad"
-                placeholder="—"
+                placeholder="€"
                 placeholderTextColor={theme.textMuted}
                 editable={!checked}
                 selectTextOnFocus
@@ -283,10 +283,10 @@ const styles = StyleSheet.create({
   priceInputWrap: {
     flexDirection: 'row', alignItems: 'center',
     borderWidth: 1.5, borderRadius: 9,
-    paddingHorizontal: 7, paddingVertical: 3,
-    gap: 2, minWidth: 68,
+    paddingHorizontal: 5, paddingVertical: 3,
+    gap: 1,
   },
-  priceInput: { fontSize: 13, fontWeight: '700', minWidth: 38, padding: 0 },
+  priceInput: { fontSize: 13, fontWeight: '700', width: 36, padding: 0 },
   currency: { fontSize: 12 },
   total: { fontSize: 12, fontWeight: '800', textAlign: 'right' },
 

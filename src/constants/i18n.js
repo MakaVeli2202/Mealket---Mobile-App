@@ -11,7 +11,7 @@ export const translations = {
     paste: {
       title: 'Shopping',
       subtitle: 'Paste & parse list',
-      placeholder: 'Paste shopping list here...\n\ne.g.:\n@Hofer\n3 Rice cakes\n2 Jam 1.49\n\n@Spar\nMilk\n4 Lemonade 0.89',
+      placeholder: '@Store\nItem  qty  price...',
       parseBtn: 'Paste & Parse',
       loadExample: 'Load example',
       clear: 'Clear',
@@ -248,7 +248,7 @@ export const translations = {
     paste: {
       title: 'Einkauf',
       subtitle: 'Liste einfügen & parsen',
-      placeholder: 'Einkaufsliste hier einfügen...\n\nz.B.:\n@Hofer\n3 Reiswaffel\n2 Marmelade 1.49\n\n@Spar\nMilch\n4 Himmeltau 0.89',
+      placeholder: '@Markt\nArtikel  Menge  Preis...',
       parseBtn: 'Einfügen & Parsen',
       loadExample: 'Beispiel laden',
       clear: 'Leeren',

@@ -1,154 +1,132 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeInDown, FadeInUp, FadeIn,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+} from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
 import { requestStepsPermission, getTodaySteps, stepsToKcal } from '../utils/healthConnect';
+import GlassCard from '../components/GlassCard';
+import GlassBg from '../components/GlassBg';
+import SpringPressable from '../components/SpringPressable';
 
-// ─── Week number (ISO 8601) ───────────────────────────────────────────────────
 function getWeekNumber(d) {
   const date = new Date(d);
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
   const week1 = new Date(date.getFullYear(), 0, 4);
-  return 1 + Math.round(
-    ((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7,
-  );
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 }
 
-// ─── Circular calorie ring (no SVG) ──────────────────────────────────────────
-function CalorieRing({ eaten, goal, color, size = 140, theme, tr }) {
-  const pct = goal > 0 ? Math.min(eaten / goal, 1) : 0;
+function CalorieRing({ eaten, goal, color, size = 148, theme, tr }) {
+  const pct      = goal > 0 ? Math.min(eaten / goal, 1) : 0;
   const remaining = Math.max(goal - eaten, 0);
-  const BORDER = 11;
-  const deg = pct * 360;
-  const isOver = eaten > goal;
-  const ringColor = isOver ? theme.danger : color;
-  const trackColor = theme.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
-  const centerTextColor = theme.text;
-  const centerSubColor = theme.textMuted;
+  const BORDER   = 12;
+  const deg      = pct * 360;
+  const isOver   = eaten > goal;
+  const ringColor  = isOver ? theme.danger : color;
+  const trackColor = theme.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
 
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      {/* Background track ring */}
-      <View style={{
-        position: 'absolute', width: size, height: size, borderRadius: size / 2,
-        borderWidth: BORDER, borderColor: trackColor,
-      }} />
-      {/* Right half fill (0–180°) */}
-      <View style={{
-        position: 'absolute', right: 0, width: size / 2, height: size, overflow: 'hidden',
-      }}>
-        <View style={{
-          width: size, height: size, borderRadius: size / 2,
-          borderWidth: BORDER, borderColor: deg > 0 ? ringColor : 'transparent',
-          transform: [{ rotate: `${Math.min(deg, 180) - 180}deg` }],
-        }} />
+      <View style={{ position: 'absolute', width: size, height: size, borderRadius: size / 2, borderWidth: BORDER, borderColor: trackColor }} />
+      <View style={{ position: 'absolute', right: 0, width: size / 2, height: size, overflow: 'hidden' }}>
+        <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: BORDER, borderColor: deg > 0 ? ringColor : 'transparent', transform: [{ rotate: `${Math.min(deg, 180) - 180}deg` }] }} />
       </View>
-      {/* Left half fill (180–360°) */}
       {deg > 180 && (
-        <View style={{
-          position: 'absolute', left: 0, width: size / 2, height: size, overflow: 'hidden',
-        }}>
-          <View style={{
-            position: 'absolute', left: 0,
-            width: size, height: size, borderRadius: size / 2,
-            borderWidth: BORDER, borderColor: ringColor,
-            transform: [{ rotate: `${deg - 360}deg` }],
-          }} />
+        <View style={{ position: 'absolute', left: 0, width: size / 2, height: size, overflow: 'hidden' }}>
+          <View style={{ position: 'absolute', left: 0, width: size, height: size, borderRadius: size / 2, borderWidth: BORDER, borderColor: ringColor, transform: [{ rotate: `${deg - 360}deg` }] }} />
         </View>
       )}
-      {/* Center content */}
       <View style={{ alignItems: 'center' }}>
-        <Text style={{ fontSize: 30, fontWeight: '900', color: centerTextColor, letterSpacing: -1 }}>
+        <Text style={{ fontSize: 32, fontWeight: '900', color: theme.text, letterSpacing: -1 }}>
           {isOver ? eaten - goal : remaining}
         </Text>
-        <Text style={{ fontSize: 11, color: centerSubColor, fontWeight: '600' }}>
-          {isOver ? tr.calories.over : tr.calories.left}
+        <Text style={{ fontSize: 10, color: theme.textMuted, fontWeight: '700', letterSpacing: 0.8 }}>
+          {(isOver ? tr.calories.over : tr.calories.left).toUpperCase()}
         </Text>
       </View>
     </View>
   );
 }
 
-// ─── Macro progress bar ───────────────────────────────────────────────────────
 function MacroBar({ label, eaten, goal, color, theme }) {
   const pct = goal > 0 ? Math.min(eaten / goal, 1) : 0;
+  const fillW = useSharedValue(0);
+  useEffect(() => { fillW.value = withSpring(pct, { damping: 20, stiffness: 80 }); }, [pct]);
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fillW.value * 100}%` }));
   return (
-    <View style={styles.macroBarWrap}>
-      <View style={[styles.macroBarTrack, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' }]}>
-        <View style={[styles.macroBarFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
+    <View style={mb.wrap}>
+      <View style={mb.labelRow}>
+        <Text style={[mb.name, { color: theme.textMuted }]}>{label}</Text>
+        <Text style={[mb.val, { color: color }]}>{Math.round(eaten)}<Text style={[mb.goal, { color: theme.textMuted }]}>/{Math.round(goal)}g</Text></Text>
       </View>
-      <View style={styles.macroBarLabels}>
-        <Text style={[styles.macroBarName, { color: theme.textMuted }]}>{label}</Text>
-        <Text style={[styles.macroBarVal, { color: theme.textMuted }]}>
-          {Math.round(eaten)} / {Math.round(goal)} g
-        </Text>
+      <View style={[mb.track, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }]}>
+        <Animated.View style={[mb.fill, { backgroundColor: color }, fillStyle]} />
       </View>
     </View>
   );
 }
+const mb = StyleSheet.create({
+  wrap:     { gap: 5, paddingVertical: 7 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  name:     { fontSize: 12, fontWeight: '600' },
+  val:      { fontSize: 12, fontWeight: '800' },
+  goal:     { fontWeight: '500' },
+  track:    { height: 5, borderRadius: 3, overflow: 'hidden' },
+  fill:     { height: '100%', borderRadius: 3 },
+});
 
-// ─── Meal row ─────────────────────────────────────────────────────────────────
 const MEAL_CONFIG = [
-  { key: 'breakfast', label: 'breakfast', icon: 'sunny-outline',      iconColor: '#FF9F0A' },
-  { key: 'lunch',     label: 'lunch',     icon: 'restaurant-outline', iconColor: '#0A84FF' },
-  { key: 'dinner',    label: 'dinner',    icon: 'moon-outline',       iconColor: '#BF5AF2' },
-  { key: 'snack',     label: 'snack',     icon: 'apple-outline',      iconColor: '#00C896' },
+  { key: 'breakfast', icon: 'sunny-outline',      iconColor: '#FF9F0A' },
+  { key: 'lunch',     icon: 'restaurant-outline', iconColor: '#0A84FF' },
+  { key: 'dinner',    icon: 'moon-outline',       iconColor: '#BF5AF2' },
+  { key: 'snack',     icon: 'apple-outline',      iconColor: '#00C896' },
 ];
 
-function MealRow({ config, entries, theme, navigation, tr }) {
+function MealRow({ config, entries, theme, navigation, tr, delay }) {
   const totalKcal = entries.reduce((s, e) => s + (e.calories || 0), 0);
-  const bgColor = config.iconColor + '22';
-
   return (
-    <TouchableOpacity
-      activeOpacity={0.75}
-      hitSlop={8}
-      style={styles.mealRow}
-      onPress={() => navigation.navigate('MealDetail', { meal: config.key })}
-    >
-      {/* Icon circle */}
-      <View style={[styles.mealIconCircle, { backgroundColor: bgColor }]}>
-        <Ionicons name={config.icon} size={22} color={config.iconColor} />
-      </View>
-
-      {/* Name + arrow */}
-      <View style={styles.mealRowCenter}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={[styles.mealName, { color: theme.text }]}>{tr.meals[config.label]}</Text>
-          <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
-        </View>
-        <Text style={[styles.mealKcalSub, { color: theme.textMuted }]}>
-          {totalKcal > 0 ? `${totalKcal} kcal` : '—'}
-        </Text>
-      </View>
-
-      {/* Add button */}
-      <TouchableOpacity
-        activeOpacity={0.75}
-        hitSlop={8}
-        style={[styles.addBtn, { backgroundColor: theme.accentLight }]}
-        onPress={() => navigation.navigate('AddFood', { meal: config.key })}
+    <Animated.View entering={FadeInDown.delay(delay).duration(260).springify().damping(20)}>
+      <SpringPressable
+        style={styles.mealRow}
+        onPress={() => navigation.navigate('MealDetail', { meal: config.key })}
       >
-        <Ionicons name="add" size={20} color={theme.accent} />
-      </TouchableOpacity>
-    </TouchableOpacity>
+        <View style={[styles.mealIcon, { backgroundColor: config.iconColor + '20' }]}>
+          <Ionicons name={config.icon} size={22} color={config.iconColor} />
+        </View>
+        <View style={styles.mealCenter}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={[styles.mealName, { color: theme.text }]}>{tr.meals[config.key]}</Text>
+            <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+          </View>
+          <Text style={[styles.mealSub, { color: theme.textMuted }]}>
+            {totalKcal > 0 ? `${totalKcal} kcal` : '—'}
+          </Text>
+        </View>
+        <SpringPressable
+          onPress={() => navigation.navigate('AddFood', { meal: config.key })}
+          style={[styles.addBtn, { backgroundColor: theme.accentLight }]}
+          scaleDown={0.88}
+        >
+          <Ionicons name="add" size={20} color={theme.accent} />
+        </SpringPressable>
+      </SpringPressable>
+    </Animated.View>
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function CaloriesScreen({ navigation }) {
-  const { theme, calorieGoal, tr } = useSettings();
+  const { theme, calorieGoal, carbGoal, proteinGoal, fatGoal, tr } = useSettings();
   const { todayEntries, todayByMeal } = useCalories();
-
+  const tabBarHeight = Platform.OS === 'ios' ? 96 : 80;
   const weekNum = getWeekNumber(new Date());
 
-  const totalKcal  = todayEntries.reduce((s, e) => s + (e.calories || 0), 0);
+  const totalKcal    = todayEntries.reduce((s, e) => s + (e.calories || 0), 0);
   const totalCarbs   = todayEntries.reduce((s, e) => s + (e.carbsG   || 0), 0);
   const totalProtein = todayEntries.reduce((s, e) => s + (e.proteinG || 0), 0);
   const totalFat     = todayEntries.reduce((s, e) => s + (e.fatG     || 0), 0);
@@ -162,342 +140,149 @@ export default function CaloriesScreen({ navigation }) {
     })();
   }, []);
 
-  // Macro goals (rough standard split)
-  const carbGoal    = Math.round(calorieGoal * 0.50 / 4);
-  const proteinGoal = Math.round(calorieGoal * 0.20 / 4);
-  const fatGoal     = Math.round(calorieGoal * 0.30 / 9);
-
-  const isOver = totalKcal > calorieGoal;
-
   return (
-    <LinearGradient colors={[theme.bg, theme.surface]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ flex: 1 }}>
+    <GlassBg theme={theme}>
       <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 110 }}
-        >
-          {/* ── TOP HEADER ── */}
-          <View style={styles.topHeader}>
-            <View>
-              <Text style={[styles.topTitle, { color: theme.text }]}>{tr.calories.today}</Text>
-              <Text style={[styles.topSubtitle, { color: theme.textMuted }]}>{tr.calories.week(weekNum)}</Text>
-            </View>
-            {/* Quick scan buttons */}
-            <View style={styles.quickScanRow}>
-              <TouchableOpacity
-                style={[styles.quickScanBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => navigation.navigate('BarcodeScanner')}
-                activeOpacity={0.75}
-                hitSlop={4}
-              >
-                <Ionicons name="barcode-outline" size={20} color={theme.accent} />
-                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>{tr.meals.barcode}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.quickScanBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => navigation.navigate('CameraLabel')}
-                activeOpacity={0.75}
-                hitSlop={4}
-              >
-                <Ionicons name="scan-outline" size={20} color={theme.accent} />
-                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>{tr.calories.label}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}>
 
-          {/* ── ÜBERSICHT SECTION ── */}
-          <View style={styles.sectionRow}>
+          {/* Header */}
+          <Animated.View entering={FadeInDown.duration(300).springify().damping(22)} style={styles.header}>
+            <View>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>{tr.calories.today}</Text>
+              <Text style={[styles.headerSub, { color: theme.textMuted }]}>{tr.calories.week(weekNum)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <SpringPressable
+                style={[styles.scanBtn, { borderColor: theme.border }]}
+                onPress={() => navigation.navigate('BarcodeScanner')}
+              >
+                <LinearGradient
+                  colors={theme.dark ? ['rgba(20,21,24,0.9)', 'rgba(14,15,18,0.9)'] : ['rgba(255,255,255,0.9)', 'rgba(242,242,246,0.9)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Ionicons name="barcode-outline" size={18} color={theme.accent} />
+                <Text style={[styles.scanLabel, { color: theme.accent }]}>{tr.meals.barcode}</Text>
+              </SpringPressable>
+              <SpringPressable
+                style={[styles.scanBtn, { borderColor: theme.border }]}
+                onPress={() => navigation.navigate('CameraLabel')}
+              >
+                <LinearGradient
+                  colors={theme.dark ? ['rgba(20,21,24,0.9)', 'rgba(14,15,18,0.9)'] : ['rgba(255,255,255,0.9)', 'rgba(242,242,246,0.9)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Ionicons name="scan-outline" size={18} color={theme.accent} />
+                <Text style={[styles.scanLabel, { color: theme.accent }]}>{tr.calories.label}</Text>
+              </SpringPressable>
+            </View>
+          </Animated.View>
+
+          {/* Overview label */}
+          <Animated.View entering={FadeInDown.delay(60).duration(280).springify()} style={styles.sectionRow}>
             <Text style={[styles.sectionLabel, { color: theme.text }]}>{tr.calories.overview}</Text>
-            <TouchableOpacity
-              activeOpacity={0.75}
-              hitSlop={8}
-              onPress={() => navigation.navigate('CalorieHistory')}
-            >
+            <TouchableOpacity onPress={() => navigation.navigate('CalorieHistory')} hitSlop={8}>
               <Text style={[styles.sectionLink, { color: theme.accent }]}>{tr.calories.all}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Summary glass card */}
+          <Animated.View entering={FadeInDown.delay(100).duration(320).springify().damping(18)} style={{ marginHorizontal: 16 }}>
+            <SpringPressable onPress={() => navigation.navigate('DayDetail')} scaleDown={0.975}>
+              <GlassCard theme={theme} intensity={60} radius={24}>
+                {/* Top accent gradient strip */}
+                <LinearGradient
+                  colors={[theme.accent + '18', 'transparent']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={{ height: 3, marginBottom: 18 }}
+                />
+                {/* 3-col stats */}
+                <View style={styles.statsRow}>
+                  <View style={styles.statCol}>
+                    <Text style={[styles.statNum, { color: theme.text }]}>{totalKcal}</Text>
+                    <Text style={[styles.statLbl, { color: theme.textMuted }]}>{tr.calories.eaten.toUpperCase()}</Text>
+                  </View>
+                  <CalorieRing eaten={totalKcal} goal={calorieGoal} color={theme.accent} theme={theme} tr={tr} />
+                  <View style={[styles.statCol, { alignItems: 'flex-end' }]}>
+                    <Text style={[styles.statNum, { color: theme.text }]}>{activity}</Text>
+                    <Text style={[styles.statLbl, { color: theme.textMuted }]}>{tr.calories.activity.toUpperCase()}</Text>
+                  </View>
+                </View>
+                {/* Macro bars */}
+                <View style={[styles.macroBarsWrap, { backgroundColor: theme.dark ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.03)' }]}>
+                  <MacroBar label={tr.calories.carbs}   eaten={totalCarbs}   goal={carbGoal}    color={theme.carbs}   theme={theme} />
+                  <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
+                  <MacroBar label={tr.calories.protein} eaten={totalProtein} goal={proteinGoal} color={theme.protein} theme={theme} />
+                  <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
+                  <MacroBar label={tr.calories.fat}     eaten={totalFat}     goal={fatGoal}     color={theme.fat}     theme={theme} />
+                </View>
+              </GlassCard>
+            </SpringPressable>
+          </Animated.View>
+
+          {/* Meals label */}
+          <View style={[styles.sectionRow, { marginTop: 22 }]}>
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>{tr.calories.nutrition}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('CalorieHistory')} hitSlop={8}>
+              <Text style={[styles.sectionLink, { color: theme.accent }]}>{tr.calories.more}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* ── DARK SUMMARY CARD (tap → day detail) ── */}
-        <TouchableOpacity
-          activeOpacity={0.95}
-          onPress={() => navigation.navigate('DayDetail')}
-        >
-            <LinearGradient
-              colors={theme.dark ? ['#1A2A20', '#1A1A1A'] : ['#F0FAF5', '#FFFFFF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.summaryCard, { borderColor: theme.border }]}
-            >
+          {/* Meal rows glass card */}
+          <Animated.View entering={FadeInDown.delay(180).duration(320).springify().damping(18)} style={{ marginHorizontal: 16 }}>
+            <GlassCard theme={theme} intensity={50} radius={24} shimmer={false}>
+              {MEAL_CONFIG.map((config, idx) => (
+                <View key={config.key}>
+                  <MealRow config={config} entries={todayByMeal[config.key] || []} theme={theme} navigation={navigation} tr={tr} delay={idx * 40} />
+                  {idx < MEAL_CONFIG.length - 1 && (
+                    <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+                  )}
+                </View>
+              ))}
+            </GlassCard>
+          </Animated.View>
 
-          {/* 3-col stats row */}
-          <View style={styles.statsRow}>
-            {/* Gegessen */}
-            <View style={styles.statCol}>
-              <Text style={[styles.statNum, { color: theme.text }]}>{totalKcal}</Text>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>{tr.calories.eaten}</Text>
-            </View>
-
-            {/* Center ring */}
-            <View style={styles.ringWrap}>
-            <CalorieRing
-                eaten={totalKcal}
-                goal={calorieGoal}
-                color={theme.accent}
-                size={140}
-                theme={theme}
-                tr={tr}
-              />
-            </View>
-
-            {/* Aktivität */}
-            <View style={[styles.statCol, { alignItems: 'flex-end' }]}>
-              <Text style={[styles.statNum, { color: theme.text }]}>{activity}</Text>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>{tr.calories.activity}</Text>
-            </View>
-          </View>
-
-          {/* Macro progress bars */}
-          <View style={[styles.macroBarsCard, { backgroundColor: theme.surfaceAlt }]}>
-            <MacroBar
-              label={tr.calories.carbs}
-              eaten={totalCarbs}
-              goal={carbGoal}
-              color={theme.carbs}
-              theme={theme}
-            />
-            <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
-            <MacroBar
-              label={tr.calories.protein}
-              eaten={totalProtein}
-              goal={proteinGoal}
-              color={theme.protein}
-              theme={theme}
-            />
-            <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
-            <MacroBar
-              label={tr.calories.fat}
-              eaten={totalFat}
-              goal={fatGoal}
-              color={theme.fat}
-              theme={theme}
-            />
-          </View>
-        </LinearGradient>
-        </TouchableOpacity>
-
-        {/* ── ERNÄHRUNG SECTION ── */}
-        <View style={[styles.sectionRow, { marginTop: 24 }]}>
-          <Text style={[styles.sectionLabel, { color: theme.text }]}>{tr.calories.nutrition}</Text>
-          <TouchableOpacity
-            activeOpacity={0.75}
-            hitSlop={8}
-            onPress={() => navigation.navigate('CalorieHistory')}
-          >
-            <Text style={[styles.sectionLink, { color: theme.accent }]}>{tr.calories.more}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── MEAL ROWS CARD ── */}
-        <View style={[styles.mealsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          {MEAL_CONFIG.map((config, idx) => (
-            <View key={config.key}>
-              <MealRow
-                config={config}
-                entries={todayByMeal[config.key] || []}
-                theme={theme}
-                navigation={navigation}
-                tr={tr}
-              />
-              {idx < MEAL_CONFIG.length - 1 && (
-                <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
-              )}
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-    </LinearGradient>
+        </ScrollView>
+      </SafeAreaView>
+    </GlassBg>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  // Header
-  topHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 4,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  header: {
+    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4,
   },
-  topTitle: {
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
-    lineHeight: 38,
+  headerTitle: { fontSize: 34, fontWeight: '900', letterSpacing: -1, lineHeight: 38 },
+  headerSub:   { fontSize: 12, fontWeight: '600', letterSpacing: 0.2, marginTop: 2 },
+  scanBtn: {
+    flexDirection: 'row', gap: 5, paddingHorizontal: 12, paddingVertical: 9,
+    borderRadius: 14, borderWidth: 1, alignItems: 'center', overflow: 'hidden',
   },
-  topSubtitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  quickScanRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  quickScanBtn: {
-    flexDirection: 'row',
-    gap: 5,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 14, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  quickScanLabel: {
-    fontSize: 13, fontWeight: '700',
-  },
+  scanLabel: { fontSize: 12, fontWeight: '700' },
 
-  // Section header row
   sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 10,
-    marginTop: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, marginBottom: 10, marginTop: 16,
   },
-  sectionLabel: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  sectionLink: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  sectionLabel: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
+  sectionLink:  { fontSize: 14, fontWeight: '600' },
 
-  // Summary card
-  summaryCard: {
-    marginHorizontal: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-    paddingTop: 20,
-    paddingBottom: 0,
-    gap: 16,
-  },
-
-  // 3-col stats + ring
   statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingBottom: 16,
   },
-  statCol: {
-    flex: 1,
-    alignItems: 'flex-start',
-    gap: 4,
-  },
-  statNum: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  ringWrap: {
-    flex: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
+  statCol:  { flex: 1, gap: 4 },
+  statNum:  { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  statLbl:  { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
 
-  // Macro bars block
-  macroBarsCard: {
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 0,
-  },
-  macroBarWrap: {
-    gap: 5,
-    paddingVertical: 8,
-  },
-  macroBarTrack: {
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  macroBarFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  macroBarLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  macroBarName: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  macroBarVal: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  macroDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 4,
-  },
+  macroBarsWrap: { paddingHorizontal: 18, paddingVertical: 4, borderBottomLeftRadius: 22, borderBottomRightRadius: 22 },
+  macroDivider:  { height: StyleSheet.hairlineWidth, marginHorizontal: 2 },
 
-  // Meals card
-  mealsCard: {
-    marginHorizontal: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  mealRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  mealIconCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mealRowCenter: {
-    flex: 1,
-    gap: 3,
-  },
-  mealName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  mealKcalSub: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  addBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 16,
-  },
+  mealRow:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, gap: 12 },
+  mealIcon:  { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  mealCenter: { flex: 1, gap: 3 },
+  mealName:  { fontSize: 15, fontWeight: '700' },
+  mealSub:   { fontSize: 12, fontWeight: '500' },
+  addBtn:    { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
 });

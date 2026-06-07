@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
+import GlassCard from './GlassCard';
 
 export default function PriceSummary({ stores }) {
   const { theme, tr } = useSettings();
@@ -20,12 +20,7 @@ export default function PriceSummary({ stores }) {
       entering={FadeInUp.duration(300).delay(200).springify().damping(18)}
       style={[styles.wrap, theme.shadow.md]}
     >
-      <LinearGradient
-        colors={theme.dark ? [theme.surface, theme.surfaceAlt] : ['#FFFFFF', theme.bg]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.container, { borderColor: theme.border }]}
-      >
+      <GlassCard theme={theme} intensity={55} style={styles.container} glow>
         {/* Header */}
         <View style={styles.headerRow}>
           <View style={[styles.iconBadge, { backgroundColor: theme.accent + '22' }]}>
@@ -71,14 +66,14 @@ export default function PriceSummary({ stores }) {
             {grandTotal > 0 ? `${grandTotal.toFixed(2)} €` : '—'}
           </Text>
         </View>
-      </LinearGradient>
+      </GlassCard>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { margin: 16 },
-  container: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  container: { borderRadius: 20 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, paddingBottom: 10 },
   iconBadge: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
