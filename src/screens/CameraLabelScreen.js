@@ -4,12 +4,14 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSettings } from '../context/SettingsContext';
+import { useCalories } from '../context/CalorieContext';
 import { analyzeNutritionLabel } from '../utils/gemini';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function CameraLabelScreen({ navigation }) {
   const { theme, tr, geminiKey, setGeminiKey } = useSettings();
+  const { saveFood } = useCalories();
   const c = tr.calories;
   const [permission, requestPermission] = useCameraPermissions();
   const [analyzing, setAnalyzing] = useState(false);
@@ -28,12 +30,9 @@ export default function CameraLabelScreen({ navigation }) {
           <Ionicons name="scan-outline" size={36} color={theme.accent} />
         </View>
 
-        <Text style={[styles.setupTitle, { color: theme.text }]}>Label Scanner</Text>
+        <Text style={[styles.setupTitle, { color: theme.text }]}>{c.labelScanner}</Text>
         <Text style={[styles.setupDesc, { color: theme.textMuted }]}>
-          Scans nutrition facts tables using Google Gemini AI — free up to 1500 scans/day.{'\n\n'}
-          Get your free key at{'\n'}
-          <Text style={{ color: theme.accent }}>aistudio.google.com</Text>{'\n\n'}
-          Sign in → "Get API key" → copy and paste below.
+          {c.labelScannerDesc}
         </Text>
 
         <View style={[styles.keyRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
@@ -53,7 +52,7 @@ export default function CameraLabelScreen({ navigation }) {
           disabled={!keyDraft.trim()}
           onPress={() => setGeminiKey(keyDraft.trim())}
         >
-          <Text style={styles.setupBtnText}>Save & Continue</Text>
+          <Text style={styles.setupBtnText}>{c.saveAndContinue}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -82,12 +81,20 @@ export default function CameraLabelScreen({ navigation }) {
         compress: 0.7, format: SaveFormat.JPEG, base64: true,
       });
       const result = await analyzeNutritionLabel(resized.base64, geminiKey);
-      navigation.navigate('AddFood', { prefill: result });
+      const lines = [
+        result.name ?? 'Scannergebnis',
+        result.kcalPer100g != null ? tr.meals.per100gResult(result.kcalPer100g, result.fatPer100g ?? '—', result.carbsPer100g ?? '—', result.proteinPer100g ?? '—') : null,
+      ].filter(Boolean).join('\n');
+      Alert.alert(c.found, lines, [
+        { text: c.scanAgain, style: 'cancel', onPress: () => { setAnalyzing(false); } },
+        { text: c.toFoodList, onPress: () => { saveFood(result); setAnalyzing(false); } },
+        { text: c.toDiary, onPress: () => navigation.navigate('AddFood', { prefill: result }) },
+      ]);
     } catch (e) {
       if (e.message === 'NO_API_KEY' || e.message?.includes('API_KEY')) {
         // Key invalid — clear it so setup screen shows again
         setGeminiKey('');
-        Alert.alert('Invalid API Key', 'Your Gemini key was rejected. Please enter a valid key.');
+        Alert.alert(c.invalidApiKey, c.invalidApiKeyMsg);
       } else {
         Alert.alert(c.analyzeError, e.message);
       }

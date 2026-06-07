@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
+  Modal, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 96 : 78;
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
@@ -22,7 +24,7 @@ function calcStreak(entriesByDate) {
 }
 
 export default function ProfilScreen({ navigation }) {
-  const { theme, calorieGoal, setCalorieGoal } = useSettings();
+  const { theme, calorieGoal, setCalorieGoal, tr } = useSettings();
   const { entriesByDate, todayEntries } = useCalories();
   const { currentWeight, goalWeight, weightHistory, setWeight, setGoalWeight } = useWeight();
 
@@ -30,6 +32,11 @@ export default function ProfilScreen({ navigation }) {
 
   const [steps, setSteps] = useState(null);
   const [stepsGranted, setStepsGranted] = useState(false);
+
+  const [weightModal, setWeightModal] = useState(false);
+  const [goalWeightModal, setGoalWeightModal] = useState(false);
+  const [weightDraft, setWeightDraft] = useState('');
+  const [goalWeightDraft, setGoalWeightDraft] = useState('');
 
   useEffect(() => {
     getTodaySteps().then((s) => {
@@ -86,8 +93,8 @@ export default function ProfilScreen({ navigation }) {
   const handleWeightManual = () => {
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        'Gewicht eintragen',
-        'Aktuelles Gewicht in kg',
+        tr.profil.weightEntry,
+        tr.profil.weightEntryMsg,
         (val) => {
           const n = parseFloat(val);
           if (!isNaN(n) && n > 0) setWeight(n);
@@ -97,18 +104,16 @@ export default function ProfilScreen({ navigation }) {
         'numeric',
       );
     } else {
-      Alert.alert(
-        'Gewicht eintragen',
-        `Aktuell: ${currentWeight} kg\nNutze + / − zum Anpassen`,
-      );
+      setWeightDraft(String(currentWeight));
+      setWeightModal(true);
     }
   };
 
   const handleGoalWeightManual = () => {
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        'Zielgewicht',
-        'Zielgewicht in kg',
+        tr.profil.goalEntry,
+        tr.profil.goalEntryMsg,
         (val) => {
           const n = parseFloat(val);
           if (!isNaN(n) && n > 0) setGoalWeight(n);
@@ -118,15 +123,26 @@ export default function ProfilScreen({ navigation }) {
         'numeric',
       );
     } else {
-      Alert.alert('Zielgewicht', `Aktuell: ${goalWeight} kg`);
+      setGoalWeightDraft(String(goalWeight));
+      setGoalWeightModal(true);
     }
+  };
+
+  const handleWeightModalSave = () => {
+    const n = parseFloat(weightDraft);
+    if (!isNaN(n) && n > 0) { setWeight(n); setWeightModal(false); }
+  };
+
+  const handleGoalWeightModalSave = () => {
+    const n = parseFloat(goalWeightDraft);
+    if (!isNaN(n) && n > 0) { setGoalWeight(n); setGoalWeightModal(false); }
   };
 
   const handleEditCalorieGoal = () => {
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        'Calorie Goal',
-        'Daily calorie goal (kcal)',
+        tr.profil.calorieGoal,
+        tr.profil.goalEntryMsg,
         (val) => {
           const n = parseInt(val, 10);
           if (!isNaN(n) && n > 0) setCalorieGoal(n);
@@ -153,7 +169,7 @@ export default function ProfilScreen({ navigation }) {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.pageTitle, { color: theme.text }]}>Profil</Text>
+          <Text style={[styles.pageTitle, { color: theme.text }]}>{tr.profil.title}</Text>
           <TouchableOpacity
             style={[styles.gearBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
             onPress={() => navigation && navigation.navigate('Settings')}
@@ -170,12 +186,10 @@ export default function ProfilScreen({ navigation }) {
           </View>
           <View style={styles.streakText}>
             <Text style={[styles.streakNumber, { color: theme.text }]}>
-              {streak} Tage Streak
+              {tr.profil.streak(streak)}
             </Text>
             <Text style={[styles.streakSub, { color: theme.textMuted }]}>
-              {streak > 0
-                ? 'Weiter so! Jeden Tag tracken.'
-                : 'Fang heute an zu tracken!'}
+              {streak > 0 ? tr.profil.streakActive : tr.profil.streakInactive}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
@@ -186,7 +200,7 @@ export default function ProfilScreen({ navigation }) {
           <View style={[card, styles.statCard]}>
             <Ionicons name="flame-outline" size={22} color={theme.accent} />
             <Text style={[styles.statValue, { color: theme.text }]}>{kcalRemaining}</Text>
-            <Text style={[styles.statLabel, { color: theme.textMuted }]}>kcal übrig</Text>
+            <Text style={[styles.statLabel, { color: theme.textMuted }]}>{'kcal ' + tr.calories.left}</Text>
           </View>
           <TouchableOpacity
             style={[card, styles.statCard]}
@@ -198,20 +212,20 @@ export default function ProfilScreen({ navigation }) {
               {steps !== null ? steps.toLocaleString() : '—'}
             </Text>
             <Text style={[styles.statLabel, { color: theme.textMuted }]}>
-              {stepsGranted ? 'Steps' : 'Connect Watch'}
+              {stepsGranted ? tr.profil.steps : tr.profil.connectWatch}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Mein Fortschritt */}
-        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Mein Fortschritt</Text>
+        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>{tr.profil.progress}</Text>
 
         <View style={[card, styles.weightCard]}>
           <View style={styles.weightCardHeader}>
-            <Text style={[styles.weightCardTitle, { color: theme.text }]}>Mein Gewicht</Text>
+            <Text style={[styles.weightCardTitle, { color: theme.text }]}>{tr.profil.weight}</Text>
             <TouchableOpacity onPress={handleGoalWeightManual}>
               <Text style={[styles.goalLabel, { color: theme.accent }]}>
-                Ziel {goalWeight} kg
+                {tr.profil.goalWeight} {goalWeight} kg
               </Text>
             </TouchableOpacity>
           </View>
@@ -291,19 +305,19 @@ export default function ProfilScreen({ navigation }) {
         </View>
 
         {/* Meine Ziele */}
-        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Meine Ziele</Text>
+        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>{tr.profil.goals}</Text>
 
         <View style={[card, styles.goalsCard]}>
           <TouchableOpacity style={styles.goalRow} onPress={handleEditCalorieGoal} activeOpacity={0.7}>
             <Ionicons name="flame-outline" size={18} color={theme.accent} />
-            <Text style={[styles.goalRowLabel, { color: theme.textMuted }]}>Calorie Goal</Text>
+            <Text style={[styles.goalRowLabel, { color: theme.textMuted }]}>{tr.profil.calorieGoal}</Text>
             <Text style={[styles.goalRowValue, { color: theme.text }]}>{calorieGoal} kcal</Text>
             <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
           </TouchableOpacity>
           <View style={[styles.goalDivider, { backgroundColor: theme.border }]} />
           <TouchableOpacity style={styles.goalRow} onPress={handleGoalWeightManual} activeOpacity={0.7}>
             <Ionicons name="scale-outline" size={18} color={theme.accentGreen} />
-            <Text style={[styles.goalRowLabel, { color: theme.textMuted }]}>Zielgewicht</Text>
+            <Text style={[styles.goalRowLabel, { color: theme.textMuted }]}>{tr.profil.weightGoal}</Text>
             <Text style={[styles.goalRowValue, { color: theme.text }]}>{goalWeight} kg</Text>
             <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
           </TouchableOpacity>
@@ -312,7 +326,7 @@ export default function ProfilScreen({ navigation }) {
         {/* Weight history hint */}
         {weightHistory.length > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Verlauf</Text>
+            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>{tr.profil.history}</Text>
             <View style={[card, styles.historyCard]}>
               {weightHistory.slice(0, 5).map((entry, i) => (
                 <View key={entry.date}>
@@ -334,12 +348,69 @@ export default function ProfilScreen({ navigation }) {
         )}
 
       </ScrollView>
+
+      {/* Weight modal (Android) */}
+      <Modal visible={weightModal} transparent animationType="fade" onRequestClose={() => setWeightModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{tr.profil.weightEntry}</Text>
+            <Text style={[styles.modalSub, { color: theme.textMuted }]}>{tr.profil.weightEntryMsg}</Text>
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+              value={weightDraft}
+              onChangeText={setWeightDraft}
+              keyboardType="decimal-pad"
+              placeholder="kg"
+              placeholderTextColor={theme.textMuted}
+              autoFocus
+              selectTextOnFocus
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.surfaceAlt }]} onPress={() => setWeightModal(false)}>
+                <Text style={[styles.modalBtnText, { color: theme.textMuted }]}>{tr.history.cancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.accent }]} onPress={handleWeightModalSave}>
+                <Text style={[styles.modalBtnText, { color: '#FFF' }]}>{tr.fasting.save}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Goal weight modal (Android) */}
+      <Modal visible={goalWeightModal} transparent animationType="fade" onRequestClose={() => setGoalWeightModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{tr.profil.goalEntry}</Text>
+            <Text style={[styles.modalSub, { color: theme.textMuted }]}>{tr.profil.goalEntryMsg}</Text>
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+              value={goalWeightDraft}
+              onChangeText={setGoalWeightDraft}
+              keyboardType="decimal-pad"
+              placeholder="kg"
+              placeholderTextColor={theme.textMuted}
+              autoFocus
+              selectTextOnFocus
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.surfaceAlt }]} onPress={() => setGoalWeightModal(false)}>
+                <Text style={[styles.modalBtnText, { color: theme.textMuted }]}>{tr.history.cancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.accent }]} onPress={handleGoalWeightModalSave}>
+                <Text style={[styles.modalBtnText, { color: '#FFF' }]}>{tr.fasting.save}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 16, paddingBottom: 48 },
+  scroll: { padding: 16, paddingBottom: TAB_BAR_HEIGHT + 24 },
 
   header: {
     flexDirection: 'row',
@@ -433,4 +504,22 @@ const styles = StyleSheet.create({
   },
   historyDate: { fontSize: 13 },
   historyKg: { fontSize: 14, fontWeight: '700' },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 32,
+  },
+  modalCard: {
+    width: '100%', borderRadius: 20, borderWidth: 1,
+    padding: 24, gap: 12,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800' },
+  modalSub: { fontSize: 13 },
+  modalInput: {
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 18, fontWeight: '700', textAlign: 'center',
+  },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalBtn: { flex: 1, padding: 12, borderRadius: 12, alignItems: 'center' },
+  modalBtnText: { fontSize: 15, fontWeight: '700' },
 });

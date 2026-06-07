@@ -16,7 +16,10 @@ const NOT_FOUND_STORE = {
 const ShoppingContext = createContext(null);
 
 function recalcStore(store) {
-  const subtotal = store.items.reduce((s, i) => Math.round((s + i.subtotal) * 100) / 100, 0);
+  // subtotal = only checked items so totals reflect what you're actually paying
+  const subtotal = store.items
+    .filter((i) => i.checked)
+    .reduce((s, i) => Math.round((s + i.subtotal) * 100) / 100, 0);
   const checkedCount = store.items.filter((i) => i.checked).length;
   return { ...store, subtotal, checkedCount };
 }
@@ -149,14 +152,49 @@ export function ShoppingProvider({ children }) {
     });
   }, []);
 
+  // Moves an item from the __not_found__ bucket back to a regular store by name match.
+  // Falls back to the first regular store if original store can't be determined.
+  const restoreItem = useCallback((itemId) => {
+    setCurrentList((prev) => {
+      if (!prev) return prev;
+      const nfIndex = prev.stores.findIndex((s) => s.id === '__not_found__');
+      if (nfIndex === -1) return prev;
+
+      const nfStore = prev.stores[nfIndex];
+      const item = nfStore.items.find((i) => i.id === itemId);
+      if (!item) return prev;
+
+      const stores = prev.stores.map((s, si) => {
+        if (si === nfIndex) {
+          return recalcStore({ ...s, items: s.items.filter((i) => i.id !== itemId) });
+        }
+        return s;
+      });
+
+      // Try to put it back in the last regular store (most recent attempt)
+      const regularStores = stores.filter((s) => s.id !== '__not_found__');
+      const targetIndex = stores.findIndex(
+        (s) => s.id !== '__not_found__' && s === regularStores[regularStores.length - 1]
+      );
+      const idx = targetIndex !== -1 ? targetIndex : stores.findIndex((s) => s.id !== '__not_found__');
+
+      if (idx !== -1) {
+        stores[idx] = recalcStore({
+          ...stores[idx],
+          items: [...stores[idx].items, { ...item, notFound: false, checked: false }],
+        });
+      }
+
+      const grandTotal = stores.reduce((s, g) => Math.round((s + g.subtotal) * 100) / 100, 0);
+      return { ...prev, stores, grandTotal };
+    });
+  }, []);
+
   // Use this instead of setCurrentList when loading a new parsed/history list
   const loadList = useCallback((list) => {
-    const withPrices = {
-      ...list,
-      stores: applyPriceMemory(list.stores, priceMemoryRef.current),
-    };
-    const grandTotal = withPrices.stores.reduce((s, g) => Math.round((s + g.subtotal) * 100) / 100, 0);
-    setCurrentList({ ...withPrices, grandTotal });
+    const stores = applyPriceMemory(list.stores, priceMemoryRef.current).map(recalcStore);
+    const grandTotal = stores.reduce((s, g) => Math.round((s + g.subtotal) * 100) / 100, 0);
+    setCurrentList({ ...list, stores, grandTotal });
   }, []);
 
   return (
@@ -168,6 +206,7 @@ export function ShoppingProvider({ children }) {
         toggleItem,
         updateItemPrice,
         moveItemToNextStore,
+        restoreItem,
         history,
         saveToHistory,
         loadHistory,

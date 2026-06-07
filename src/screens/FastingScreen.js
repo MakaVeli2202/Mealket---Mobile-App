@@ -27,8 +27,10 @@ function formatSeconds(totalSeconds) {
   ];
 }
 
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 96 : 78;
+
 export default function FastingScreen() {
-  const { theme } = useSettings();
+  const { theme, tr } = useSettings();
   const {
     isFasting,
     eatingWindowHours,
@@ -54,11 +56,11 @@ export default function FastingScreen() {
   const handleStartStop = () => {
     if (isFasting) {
       Alert.alert(
-        'Fasten beenden',
-        'Möchtest du das Fasten jetzt beenden?',
+        tr.fasting.stopTitle,
+        tr.fasting.stopMsg,
         [
-          { text: 'Abbrechen', style: 'cancel' },
-          { text: 'Beenden', style: 'destructive', onPress: stopFasting },
+          { text: tr.history.cancel, style: 'cancel' },
+          { text: tr.fasting.stop, style: 'destructive', onPress: stopFasting },
         ],
       );
     } else {
@@ -69,13 +71,13 @@ export default function FastingScreen() {
   const handleEditEatStart = () => {
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        'Essen Start',
-        'Uhrzeit eingeben (z.B. 12:00)',
+        tr.fasting.eatStart,
+        tr.fasting.timePrompt,
         (val) => {
           if (val && /^\d{1,2}:\d{2}$/.test(val.trim())) {
             setEatStart(val.trim());
           } else if (val) {
-            Alert.alert('Ungültig', 'Format: HH:MM (z.B. 12:00)');
+            Alert.alert(tr.fasting.invalidFormat, tr.fasting.formatHint);
           }
         },
         'plain-text',
@@ -92,7 +94,7 @@ export default function FastingScreen() {
       setEatStart(timeInput.trim());
       setEditTimeModal(false);
     } else {
-      Alert.alert('Ungültig', 'Format: HH:MM (z.B. 12:00)');
+      Alert.alert(tr.fasting.invalidFormat, tr.fasting.formatHint);
     }
   };
 
@@ -110,7 +112,7 @@ export default function FastingScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.pageTitle, { color: theme.text }]}>Intervallfasten</Text>
+            <Text style={[styles.pageTitle, { color: theme.text }]}>{tr.fasting.title}</Text>
             <Text style={[styles.pageSub, { color: theme.textMuted }]}>
               {fastingWindowHours}h Fasten · {eatingWindowHours}h Essen
             </Text>
@@ -119,7 +121,7 @@ export default function FastingScreen() {
 
         {/* Section label + edit */}
         <View style={styles.sectionRow}>
-          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Fasten-Tracker</Text>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>{tr.fasting.tracker}</Text>
           <Text style={[styles.presetLabel, { color: theme.accent }]}>
             {fastingWindowHours}:{eatingWindowHours}
           </Text>
@@ -134,8 +136,8 @@ export default function FastingScreen() {
               activeOpacity={0.7}
               onPress={() => {
                 const msg = isFasting
-                  ? `Ich faste seit ${hh}:${mm}:${ss} (${fastingWindowHours}:${eatingWindowHours})`
-                  : `Ich mache Intervallfasten (${fastingWindowHours}:${eatingWindowHours})`;
+                  ? tr.fasting.shareFasting(hh, mm, ss, fastingWindowHours, eatingWindowHours)
+                  : tr.fasting.shareNotFasting(fastingWindowHours, eatingWindowHours);
                 Share.share({ message: msg }).catch(() => {});
               }}
             >
@@ -145,8 +147,8 @@ export default function FastingScreen() {
               style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt }]}
               activeOpacity={0.7}
               onPress={() => Alert.alert(
-                'Intervallfasten',
-                `${fastingWindowHours}:${eatingWindowHours} — ${fastingWindowHours}h Fasten, ${eatingWindowHours}h Essen.\n\nDein Fasten startet automatisch nach dem Essensfenster.`
+                tr.fasting.title,
+                tr.fasting.infoDescription(fastingWindowHours, eatingWindowHours)
               )}
             >
               <Ionicons name="information-circle-outline" size={18} color={theme.textMuted} />
@@ -155,7 +157,7 @@ export default function FastingScreen() {
 
           {/* Status text */}
           <Text style={[styles.statusText, { color: isFasting ? theme.accent : theme.accentGreen }]}>
-            {isFasting ? 'Du fastest gerade' : 'Du kannst jetzt essen!'}
+            {isFasting ? tr.fasting.fasting : tr.fasting.canEat}
           </Text>
 
           {/* Circle icon */}
@@ -179,17 +181,17 @@ export default function FastingScreen() {
           <View style={styles.timerRow}>
             <View style={styles.timerBlock}>
               <Text style={[styles.timerDigit, { color: theme.text }]}>{hh}</Text>
-              <Text style={[styles.timerUnit, { color: theme.textMuted }]}>Std</Text>
+              <Text style={[styles.timerUnit, { color: theme.textMuted }]}>{tr.fasting.hours}</Text>
             </View>
             <Text style={[styles.timerColon, { color: theme.textMuted }]}>:</Text>
             <View style={styles.timerBlock}>
               <Text style={[styles.timerDigit, { color: theme.text }]}>{mm}</Text>
-              <Text style={[styles.timerUnit, { color: theme.textMuted }]}>Min</Text>
+              <Text style={[styles.timerUnit, { color: theme.textMuted }]}>{tr.fasting.min}</Text>
             </View>
             <Text style={[styles.timerColon, { color: theme.textMuted }]}>:</Text>
             <View style={styles.timerBlock}>
               <Text style={[styles.timerDigit, { color: theme.text }]}>{ss}</Text>
-              <Text style={[styles.timerUnit, { color: theme.textMuted }]}>Sek</Text>
+              <Text style={[styles.timerUnit, { color: theme.textMuted }]}>{tr.fasting.sec}</Text>
             </View>
           </View>
 
@@ -210,22 +212,22 @@ export default function FastingScreen() {
               color="#FFF"
             />
             <Text style={styles.mainBtnText}>
-              {isFasting ? 'Fasten beenden' : 'Fasten starten'}
+              {isFasting ? tr.fasting.stop : tr.fasting.start}
             </Text>
           </TouchableOpacity>
 
           {/* Eat window times */}
           <View style={[styles.timeRow, { borderTopColor: theme.border }]}>
             <View style={styles.timeBlock}>
-              <Text style={[styles.timeLabel, { color: theme.textMuted }]}>Essen Start</Text>
+              <Text style={[styles.timeLabel, { color: theme.textMuted }]}>{tr.fasting.eatStart}</Text>
               <Text style={[styles.timeValue, { color: theme.text }]}>{eatStart}</Text>
               <TouchableOpacity onPress={handleEditEatStart} activeOpacity={0.7}>
-                <Text style={[styles.bearbeitenBtn, { color: theme.accent }]}>Bearbeiten</Text>
+                <Text style={[styles.bearbeitenBtn, { color: theme.accent }]}>{tr.fasting.edit}</Text>
               </TouchableOpacity>
             </View>
             <View style={[styles.timeDivider, { backgroundColor: theme.border }]} />
             <View style={styles.timeBlock}>
-              <Text style={[styles.timeLabel, { color: theme.textMuted }]}>Essen Ende</Text>
+              <Text style={[styles.timeLabel, { color: theme.textMuted }]}>{tr.fasting.eatEnd}</Text>
               <Text style={[styles.timeValue, { color: theme.text }]}>{eatEndTime}</Text>
               <Text style={[styles.bearbeitenBtn, { color: 'transparent' }]}>—</Text>
             </View>
@@ -233,7 +235,7 @@ export default function FastingScreen() {
         </View>
 
         {/* Preset buttons */}
-        <View style={styles.presetsRow}>
+        <View style={[styles.presetsRow, { marginBottom: TAB_BAR_HEIGHT + 16 }]}>
           {PRESETS.map((p) => {
             const isActive = p.eat === eatingWindowHours;
             return (
@@ -277,8 +279,8 @@ export default function FastingScreen() {
           style={styles.modalOverlay}
         >
           <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Essen Start</Text>
-            <Text style={[styles.modalSub, { color: theme.textMuted }]}>Uhrzeit eingeben (z.B. 12:00)</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{tr.fasting.eatStart}</Text>
+            <Text style={[styles.modalSub, { color: theme.textMuted }]}>{tr.fasting.timePrompt}</Text>
             <TextInput
               style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
               value={timeInput}
@@ -293,13 +295,13 @@ export default function FastingScreen() {
                 style={[styles.modalBtn, { backgroundColor: theme.surfaceAlt }]}
                 onPress={() => setEditTimeModal(false)}
               >
-                <Text style={[styles.modalBtnText, { color: theme.textMuted }]}>Abbrechen</Text>
+                <Text style={[styles.modalBtnText, { color: theme.textMuted }]}>{tr.history.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: theme.accent }]}
                 onPress={handleTimeModalSave}
               >
-                <Text style={[styles.modalBtnText, { color: '#FFF' }]}>Speichern</Text>
+                <Text style={[styles.modalBtnText, { color: '#FFF' }]}>{tr.fasting.save}</Text>
               </TouchableOpacity>
             </View>
           </View>

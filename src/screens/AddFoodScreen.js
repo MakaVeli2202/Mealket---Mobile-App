@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
 import { searchFood } from '../utils/openFoodFacts';
@@ -13,26 +14,19 @@ import { searchLocalFoods, FOOD_DATABASE } from '../constants/foodDatabase';
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
-const MEAL_LABELS = {
-  breakfast: 'Frühstück',
-  lunch: 'Mittagessen',
-  dinner: 'Abendessen',
-  snack: 'Snacks',
-};
-
 const NUTRIENT_FIELDS = [
-  { key: 'kcal',    icon: 'flash-outline',    label: 'kcal / 100g', stateKey: 'kcal',    colorKey: 'accent'  },
-  { key: 'fat',     icon: 'water-outline',    label: 'Fett (g)',    stateKey: 'fat',     colorKey: 'fat'     },
-  { key: 'carbs',   icon: 'grid-outline',     label: 'Kohlenhydr.', stateKey: 'carbs',   colorKey: 'carbs'   },
-  { key: 'sugar',   icon: 'ellipse-outline',  label: 'Zucker (g)',  stateKey: 'sugar',   colorKey: 'sugar'   },
-  { key: 'protein', icon: 'fitness-outline',  label: 'Eiweiß (g)',  stateKey: 'protein', colorKey: 'protein' },
+  { key: 'kcal',    icon: 'flash-outline',    labelKey: 'kcal',   colorKey: 'accent'  },
+  { key: 'fat',     icon: 'water-outline',    labelKey: 'fat',    colorKey: 'fat'     },
+  { key: 'carbs',   icon: 'grid-outline',     labelKey: 'carbs',  colorKey: 'carbs'   },
+  { key: 'sugar',   icon: 'ellipse-outline',  labelKey: 'sugar',  colorKey: 'sugar'   },
+  { key: 'protein', icon: 'fitness-outline',  labelKey: 'protein',colorKey: 'protein' },
 ];
 
 const TAB_DEFS = [
-  { id: 'search', label: 'Suche',      icon: 'search-outline'  },
-  { id: 'camera', label: 'Kamera',     icon: 'camera-outline'  },
-  { id: 'barcode', label: 'Barcode',   icon: 'barcode-outline' },
-  { id: 'manual', label: 'Eintippen', icon: 'create-outline'  },
+  { id: 'search', labelKey: 'search',  icon: 'search-outline'  },
+  { id: 'camera', labelKey: 'camera',  icon: 'camera-outline'  },
+  { id: 'barcode', labelKey: 'barcode', icon: 'barcode-outline' },
+  { id: 'manual', labelKey: 'manual',  icon: 'create-outline'  },
 ];
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -94,10 +88,10 @@ const srStyles = StyleSheet.create({
 
 export default function AddFoodScreen({ navigation, route }) {
   const { theme, tr } = useSettings();
-  const { addEntry, todayByMeal, entries } = useCalories();
+  const { addEntry, todayByMeal, entries, savedFoods } = useCalories();
 
   const meal    = route.params?.meal ?? 'snack';
-  const mealLabel = MEAL_LABELS[meal] ?? meal;
+  const mealLabel = tr.meals[meal] ?? meal;
 
   // ── tab state ──
   const [activeTab, setActiveTab] = useState('search');
@@ -116,6 +110,17 @@ export default function AddFoodScreen({ navigation, route }) {
   const [sugar,   setSugar]   = useState('');
   const [protein, setProtein] = useState('');
   const [amountG, setAmountG] = useState('100');
+
+  // ── persist last amount ──
+  useEffect(() => {
+    AsyncStorage.getItem('@einkauf_last_amount').then((v) => {
+      if (v) setAmountG(v);
+    }).catch(() => {});
+  }, []);
+  const saveAmount = useCallback((v) => {
+    setAmountG(v);
+    AsyncStorage.setItem('@einkauf_last_amount', v).catch(() => {});
+  }, []);
 
   const stateMap  = { kcal, fat, carbs, sugar, protein };
   const setterMap = { kcal: setKcal, fat: setFat, carbs: setCarbs, sugar: setSugar, protein: setProtein };
@@ -173,8 +178,10 @@ export default function AddFoodScreen({ navigation, route }) {
       setSearching(false);
       return;
     }
-    // immediate local search
-    const local = searchLocalFoods(q);
+    // immediate local search (database + saved foods)
+    const local = [...searchLocalFoods(q), ...savedFoods.filter(
+      (f) => f.name.toLowerCase().includes(q) || (f.brand && f.brand.toLowerCase().includes(q))
+    )];
     setResults(local);
     if (q.length < 2) return;
     // debounced remote search
@@ -193,7 +200,7 @@ export default function AddFoodScreen({ navigation, route }) {
       }
     }, 600);
     return () => clearTimeout(debounceRef.current);
-  }, [query]);
+  }, [query, savedFoods]);
 
   // ── handlers ──
   const applyPrefill = useCallback((item) => {
@@ -205,6 +212,7 @@ export default function AddFoodScreen({ navigation, route }) {
     setSugar(s.sugar);
     setProtein(s.protein);
     setAmountG('100');
+    saveAmount('100');
     setActiveTab('manual');
   }, []);
 
@@ -245,7 +253,7 @@ export default function AddFoodScreen({ navigation, route }) {
           style={[tabContent.searchInput, { color: theme.text }]}
           value={query}
           onChangeText={setQuery}
-          placeholder={`Was hattest du zum ${mealLabel}?`}
+          placeholder={tr.meals.searchPlaceholder(mealLabel)}
           placeholderTextColor={theme.textMuted}
           autoCorrect={false}
           returnKeyType="search"
@@ -259,13 +267,21 @@ export default function AddFoodScreen({ navigation, route }) {
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {recentFoods.length > 0 && (
             <>
-              <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>Zuletzt verwendet</Text>
+              <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>{tr.meals.recentlyUsed}</Text>
               {recentFoods.map((item, i) => (
                 <SearchResultItem key={`r${i}`} item={item} onAdd={applyPrefill} theme={theme} />
               ))}
             </>
           )}
-          <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>Vorschläge</Text>
+          {savedFoods.length > 0 && (
+            <>
+              <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>{tr.meals.myFoods}</Text>
+              {savedFoods.map((item, i) => (
+                <SearchResultItem key={`s${i}`} item={item} onAdd={applyPrefill} theme={theme} />
+              ))}
+            </>
+          )}
+          <Text style={[tabContent.sectionHeader, { color: theme.textMuted }]}>{tr.meals.suggestions}</Text>
           {FOOD_DATABASE.slice(0, 20).map((item, i) => (
             <SearchResultItem key={`db${i}`} item={item} onAdd={applyPrefill} theme={theme} />
           ))}
@@ -278,7 +294,7 @@ export default function AddFoodScreen({ navigation, route }) {
       ) : results.length === 0 ? (
         <View style={tabContent.emptyState}>
           <Ionicons name="alert-circle-outline" size={40} color={theme.textMuted} style={{ opacity: 0.4 }} />
-          <Text style={[tabContent.emptyText, { color: theme.textMuted }]}>Keine Ergebnisse gefunden</Text>
+          <Text style={[tabContent.emptyText, { color: theme.textMuted }]}>{tr.meals.noResults}</Text>
         </View>
       ) : (
         <FlatList
@@ -304,12 +320,12 @@ export default function AddFoodScreen({ navigation, route }) {
     >
       {/* food name */}
       <View style={[card.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[card.label, { color: theme.textMuted }]}>Lebensmittelname</Text>
+        <Text style={[card.label, { color: theme.textMuted }]}>{tr.calories.foodName}</Text>
         <TextInput
           style={[card.nameInput, { color: theme.text, borderColor: theme.border }]}
           value={name}
           onChangeText={setName}
-          placeholder="z.B. Griechischer Joghurt"
+          placeholder={tr.calories.foodNamePlaceholder}
           placeholderTextColor={theme.textMuted}
           autoCorrect={false}
           returnKeyType="next"
@@ -318,9 +334,9 @@ export default function AddFoodScreen({ navigation, route }) {
 
       {/* nutrition per 100g */}
       <View style={[card.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[card.label, { color: theme.textMuted }]}>Nährwerte pro 100g</Text>
+        <Text style={[card.label, { color: theme.textMuted }]}>{tr.calories.per100g}</Text>
         <View style={card.nutriGrid}>
-          {NUTRIENT_FIELDS.map(({ key, icon, label, stateKey, colorKey }) => (
+          {NUTRIENT_FIELDS.map(({ key, icon, labelKey, colorKey }) => (
             <View
               key={key}
               style={[card.nutriField, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
@@ -328,14 +344,14 @@ export default function AddFoodScreen({ navigation, route }) {
               <Ionicons name={icon} size={14} color={theme[colorKey] || theme.accent} style={{ marginBottom: 4 }} />
               <TextInput
                 style={[card.nutriInput, { color: theme.text }]}
-                value={stateMap[stateKey]}
-                onChangeText={setterMap[stateKey]}
+                value={stateMap[labelKey]}
+                onChangeText={setterMap[labelKey]}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={theme.textMuted}
                 selectTextOnFocus
               />
-              <Text style={[card.nutriLabel, { color: theme.textMuted }]}>{label}</Text>
+              <Text style={[card.nutriLabel, { color: theme.textMuted }]}>{tr.meals.nutrientFields[labelKey]}</Text>
             </View>
           ))}
         </View>
@@ -343,7 +359,7 @@ export default function AddFoodScreen({ navigation, route }) {
 
       {/* amount */}
       <View style={[card.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[card.label, { color: theme.textMuted }]}>Verzehrte Menge</Text>
+        <Text style={[card.label, { color: theme.textMuted }]}>{tr.calories.amountConsumed}</Text>
         <View style={card.amountRow}>
           <TextInput
             style={[
@@ -351,7 +367,7 @@ export default function AddFoodScreen({ navigation, route }) {
               { color: theme.text, borderColor: theme.accent, backgroundColor: theme.accentLight },
             ]}
             value={amountG}
-            onChangeText={setAmountG}
+            onChangeText={saveAmount}
             keyboardType="decimal-pad"
             placeholder="100"
             placeholderTextColor={theme.textMuted}
@@ -367,9 +383,9 @@ export default function AddFoodScreen({ navigation, route }) {
           <Text style={card.resultKcal}>{totalKcal}</Text>
           <Text style={card.resultKcalLabel}>kcal</Text>
           {(totalFat > 0 || totalCarbs > 0 || totalProtein > 0) && (
-            <Text style={card.resultMacros}>
-              Fett {totalFat}g · Kohlenhydr. {totalCarbs}g · Eiweiß {totalProtein}g
-            </Text>
+              <Text style={card.resultMacros}>
+                {tr.meals.macrosLine(totalFat, totalCarbs, totalProtein)}
+              </Text>
           )}
         </View>
       )}
@@ -433,7 +449,7 @@ export default function AddFoodScreen({ navigation, route }) {
                     color={isActive ? '#FFF' : theme.textMuted}
                   />
                   <Text style={[styles.tabLabel, { color: isActive ? '#FFF' : theme.textMuted }]}>
-                    {tab.label}
+                    {tr.meals[tab.labelKey]}
                   </Text>
                 </TouchableOpacity>
               );
@@ -454,7 +470,7 @@ export default function AddFoodScreen({ navigation, route }) {
             onPress={() => navigation.goBack()}
             activeOpacity={0.8}
           >
-            <Text style={styles.fertigText}>Fertig</Text>
+            <Text style={styles.fertigText}>{tr.meals.done}</Text>
           </TouchableOpacity>
         </View>
 

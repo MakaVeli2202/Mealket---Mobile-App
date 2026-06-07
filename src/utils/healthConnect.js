@@ -1,16 +1,35 @@
-/**
- * Health Connect stub — react-native-health-connect removed due to Gradle
- * incompatibility with Expo SDK 56. Re-add when a compatible version is available.
- *
- * All functions return 0 / false — the UI gracefully shows '—' for steps.
- */
+import { initialize, requestPermission, aggregateRecord } from 'react-native-health-connect';
 
 export async function requestStepsPermission() {
-  return false;
+  try {
+    const ok = await initialize();
+    if (!ok) return false;
+    const granted = await requestPermission([{ accessType: 'read', recordType: 'Steps' }]);
+    return granted.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export async function getTodaySteps() {
-  return 0;
+  try {
+    const ok = await initialize();
+    if (!ok) return 0;
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const result = await aggregateRecord({
+      recordType: 'Steps',
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      },
+    });
+    return result.COUNT_TOTAL ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function stepsToKcal(steps) {

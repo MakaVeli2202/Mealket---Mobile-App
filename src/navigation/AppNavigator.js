@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
-import { Platform, StyleSheet, Animated } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { Platform, StyleSheet, Animated, View } from 'react-native';
+import { NavigationContainer, DefaultTheme, DarkTheme, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,43 +91,48 @@ export default function AppNavigator({ navigationRef }) {
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Tabs.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: 'transparent',
-            position: 'absolute',
-            borderTopWidth: 0,
-            height: Platform.OS === 'ios' ? 96 : 78,
-            paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-            paddingTop: 10,
-            elevation: 0,
-          },
-          tabBarBackground: () => (
-            <LinearGradient
-              colors={[theme.bg + 'F2', theme.bg]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={{ flex: 1 }}
-            />
-          ),
-          tabBarActiveTintColor: theme.accent,
-          tabBarInactiveTintColor: theme.textMuted,
-          tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
-          tabBarIcon: ({ color, focused, size }) => {
-            const ico = tabIcons[route.name];
-            if (!ico) return null;
-            return (
-              <View style={styles.tabIconWrap}>
-                {focused && <View style={[styles.tabPill, { backgroundColor: theme.accent }]} />}
-                <Ionicons
-                  name={focused ? ico.focused : ico.outline}
-                  size={focused ? 26 : 22}
-                  color={color}
-                />
-              </View>
-            );
-          },
-        })}
+        screenOptions={({ route }) => {
+          const focusedRoute = getFocusedRouteNameFromRoute(route);
+          const hideTab = focusedRoute === 'CameraLabel' || focusedRoute === 'BarcodeScanner';
+          return {
+            headerShown: false,
+            tabBarStyle: {
+              display: hideTab ? 'none' : 'flex',
+              backgroundColor: 'transparent',
+              position: 'absolute',
+              borderTopWidth: 0,
+              height: Platform.OS === 'ios' ? 96 : 78,
+              paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+              paddingTop: 10,
+              elevation: 0,
+            },
+            tabBarBackground: () => (
+              <LinearGradient
+                colors={[theme.bg + 'F2', theme.bg]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={{ flex: 1 }}
+              />
+            ),
+            tabBarActiveTintColor: theme.accent,
+            tabBarInactiveTintColor: theme.textMuted,
+            tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+            tabBarIcon: ({ color, focused, size }) => {
+              const ico = tabIcons[route.name];
+              if (!ico) return null;
+              return (
+                <View style={styles.tabIconWrap}>
+                  {focused && <View style={[styles.tabPill, { backgroundColor: theme.accent }]} />}
+                  <Ionicons
+                    name={focused ? ico.focused : ico.outline}
+                    size={focused ? 26 : 22}
+                    color={color}
+                  />
+                </View>
+              );
+            },
+          };
+        }}
       >
         <Tabs.Screen
           name="ShoppingTab"

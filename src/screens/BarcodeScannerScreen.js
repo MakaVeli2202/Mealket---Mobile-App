@@ -1,16 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSettings } from '../context/SettingsContext';
+import { useCalories } from '../context/CalorieContext';
 import { lookupBarcode } from '../utils/openFoodFacts';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function BarcodeScannerScreen({ navigation }) {
   const { theme, tr } = useSettings();
+  const { saveFood } = useCalories();
   const c = tr.calories;
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanning, setScanning] = useState(true);
   const [loading, setLoading] = useState(false);
+  // Use ref so the onBarcodeScanned closure always sees fresh value without stale capture
+  const scanningRef = React.useRef(true);
+
+  const enableScan = () => { scanningRef.current = true; setLoading(false); };
+  const disableScan = () => { scanningRef.current = false; };
+
+  useFocusEffect(useCallback(() => {
+    enableScan();
+  }, []));
 
   if (!permission) return <View style={[styles.center, { backgroundColor: theme.bg }]} />;
 
@@ -27,22 +38,31 @@ export default function BarcodeScannerScreen({ navigation }) {
   }
 
   const handleBarcode = async ({ data }) => {
-    if (!scanning || loading) return;
-    setScanning(false);
+    if (!scanningRef.current || loading) return;
+    disableScan();
     setLoading(true);
     try {
       const result = await lookupBarcode(data);
       if (!result) {
         Alert.alert(c.notFound, `${c.barcodeNotFound} (${data})`, [
-          { text: tr.history.cancel, onPress: () => { setScanning(true); setLoading(false); } },
-          { text: c.enterManually, onPress: () => navigation.navigate('AddFood') },
+          { text: tr.history.cancel, onPress: enableScan },
+          { text: c.enterManually, onPress: () => { enableScan(); navigation.navigate('AddFood'); } },
         ]);
         return;
       }
-      navigation.navigate('AddFood', { prefill: result });
+      const lines = [
+        result.name,
+        result.brand ?? null,
+        result.kcalPer100g != null ? tr.meals.per100gResult(result.kcalPer100g, result.fatPer100g ?? '—', result.carbsPer100g ?? '—', result.proteinPer100g ?? '—') : null,
+      ].filter(Boolean).join('\n');
+      Alert.alert(c.found, lines, [
+        { text: c.continueScan, style: 'cancel', onPress: enableScan },
+        { text: c.toFoodList, onPress: () => { saveFood(result); enableScan(); } },
+        { text: c.toDiary, onPress: () => { enableScan(); navigation.navigate('AddFood', { prefill: result }); } },
+      ]);
     } catch (e) {
       Alert.alert(c.scanError, e.message, [
-        { text: 'OK', onPress: () => { setScanning(true); setLoading(false); } },
+        { text: 'OK', onPress: enableScan },
       ]);
     }
   };
@@ -52,7 +72,7 @@ export default function BarcodeScannerScreen({ navigation }) {
       <CameraView
         style={{ flex: 1 }}
         facing="back"
-        onBarcodeScanned={scanning ? handleBarcode : undefined}
+        onBarcodeScanned={handleBarcode}
         barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'qr', 'upc_a', 'upc_e', 'code128', 'code39'] }}
       >
         <View style={styles.overlay}>

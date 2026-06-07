@@ -1,19 +1,28 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue, useAnimatedStyle,
+  withSpring, withTiming, withSequence,
+  FadeInDown, FadeInRight, SlideOutRight,
+  Layout,
+} from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
 import { useShopping } from '../context/ShoppingContext';
 
-function EditableItem({ item, storeIdx, onUpdate, onRemove, theme }) {
+// ── Editable item row ────────────────────────────────────────────────────────
+function EditableItem({ item, storeIdx, onUpdate, onRemove, theme, index }) {
   const [editingName, setEditingName] = useState(false);
   const [nameText, setNameText] = useState(item.name);
   const [qtyText, setQtyText] = useState(String(item.quantity));
   const [priceText, setPriceText] = useState(item.unitPrice > 0 ? item.unitPrice.toFixed(2) : '');
+
+  const removeScale = useSharedValue(1);
 
   const commitName = () => {
     setEditingName(false);
@@ -32,40 +41,63 @@ function EditableItem({ item, storeIdx, onUpdate, onRemove, theme }) {
   };
 
   const commitPrice = (val) => {
-    const p = parseFloat(val.replace(',', '.'));
-    const price = isNaN(p) ? 0 : p;
+    const price = isNaN(parseFloat(val.replace(',', '.'))) ? 0 : parseFloat(val.replace(',', '.'));
     onUpdate(storeIdx, item.id, { unitPrice: price, subtotal: (item.quantity || 1) * price });
   };
+
+  const handleRemove = () => {
+    removeScale.value = withSequence(
+      withTiming(1.15, { duration: 80 }),
+      withTiming(0, { duration: 140 })
+    );
+    setTimeout(() => onRemove(storeIdx, item.id), 180);
+  };
+
+  const removeStyle = useAnimatedStyle(() => ({ transform: [{ scale: removeScale.value }] }));
 
   const total = (item.quantity || 1) * (parseFloat(priceText.replace(',', '.')) || 0);
 
   return (
-    <View style={[styles.itemRow, { borderTopColor: theme.border }]}>
+    <Animated.View
+      entering={FadeInRight.duration(260).delay(index * 35).springify().damping(18)}
+      layout={Layout.springify().damping(18)}
+      style={[styles.itemRow, { borderTopColor: theme.border }]}
+    >
+      {/* Left: index number */}
+      <View style={[styles.itemNum, { backgroundColor: theme.surfaceAlt }]}>
+        <Text style={[styles.itemNumText, { color: theme.textMuted }]}>{index + 1}</Text>
+      </View>
+
+      {/* Main content */}
       <View style={styles.itemMain}>
-        {/* Name — tap to edit */}
         {editingName ? (
           <TextInput
             autoFocus
-            style={[styles.nameInput, { color: theme.text, borderColor: theme.accent }]}
+            style={[styles.nameInput, { color: theme.text, borderColor: theme.accent, backgroundColor: theme.accentLight }]}
             value={nameText}
             onChangeText={setNameText}
             onBlur={commitName}
             onSubmitEditing={commitName}
             returnKeyType="done"
+            selectTextOnFocus
           />
         ) : (
-          <TouchableOpacity onPress={() => setEditingName(true)} activeOpacity={0.7}>
-            <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
-            <Text style={[styles.editHint, { color: theme.textMuted }]}>tap to edit</Text>
+          <TouchableOpacity onPress={() => setEditingName(true)} activeOpacity={0.7} style={styles.nameBtn}>
+            <Text style={[styles.itemName, { color: theme.text }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <View style={[styles.editBadge, { backgroundColor: theme.accent + '15' }]}>
+              <Ionicons name="pencil" size={9} color={theme.accent} />
+            </View>
           </TouchableOpacity>
         )}
 
-        {/* Qty × Price → Total row */}
-        <View style={styles.qtyPriceRow}>
+        {/* Qty × Price */}
+        <View style={styles.fieldsRow}>
           {/* Qty */}
-          <View style={[styles.numInputWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+          <View style={[styles.fieldWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
             <TextInput
-              style={[styles.numInput, { color: theme.text }]}
+              style={[styles.fieldInput, { color: theme.text }]}
               value={qtyText}
               onChangeText={setQtyText}
               onBlur={(e) => commitQty(e.nativeEvent.text)}
@@ -73,45 +105,50 @@ function EditableItem({ item, storeIdx, onUpdate, onRemove, theme }) {
               keyboardType="number-pad"
               selectTextOnFocus
             />
-            <Text style={[styles.numLabel, { color: theme.textMuted }]}>qty</Text>
+            <Text style={[styles.fieldLabel, { color: theme.accent }]}>qty</Text>
           </View>
 
-          <Text style={[styles.multiply, { color: theme.textMuted }]}>×</Text>
+          <Text style={[styles.multiplySign, { color: theme.textMuted }]}>×</Text>
 
-          {/* Unit price */}
-          <View style={[styles.numInputWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+          {/* Price */}
+          <View style={[styles.fieldWrap, styles.fieldWrapWide, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
             <TextInput
-              style={[styles.numInput, { color: theme.text }]}
+              style={[styles.fieldInput, { color: theme.text }]}
               value={priceText}
               onChangeText={setPriceText}
               onBlur={(e) => commitPrice(e.nativeEvent.text)}
               onSubmitEditing={(e) => commitPrice(e.nativeEvent.text)}
               keyboardType="decimal-pad"
-              placeholder="0.00"
+              placeholder="—"
               placeholderTextColor={theme.textMuted}
               selectTextOnFocus
             />
-            <Text style={[styles.numLabel, { color: theme.textMuted }]}>€</Text>
+            <Text style={[styles.fieldLabel, { color: theme.accent }]}>€</Text>
           </View>
 
           {total > 0 && (
-            <Text style={[styles.total, { color: theme.accent }]}>= {total.toFixed(2)} €</Text>
+            <View style={[styles.totalBadge, { backgroundColor: theme.accent + '18' }]}>
+              <Text style={[styles.totalText, { color: theme.accent }]}>{total.toFixed(2)} €</Text>
+            </View>
           )}
         </View>
       </View>
 
       {/* Remove */}
-      <TouchableOpacity
-        style={styles.removeBtn}
-        onPress={() => onRemove(storeIdx, item.id)}
-        hitSlop={8}
-      >
-        <Ionicons name="close-circle" size={22} color={theme.danger} />
-      </TouchableOpacity>
-    </View>
+      <Animated.View style={removeStyle}>
+        <TouchableOpacity
+          style={[styles.removeBtn, { backgroundColor: theme.danger + '15' }]}
+          onPress={handleRemove}
+          hitSlop={8}
+        >
+          <Ionicons name="close" size={15} color={theme.danger} />
+        </TouchableOpacity>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
+// ── Main screen ──────────────────────────────────────────────────────────────
 export default function ReviewScreen({ navigation, route }) {
   const { theme, tr } = useSettings();
   const r = tr.review;
@@ -148,37 +185,81 @@ export default function ReviewScreen({ navigation, route }) {
   };
 
   const totalItems = stores.reduce((s, g) => s + g.items.length, 0);
+  const totalStores = stores.length;
+  const hasMultipleStores = totalStores > 1;
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+  const ListHeader = (
+    <Animated.View entering={FadeInDown.duration(300).springify().damping(20)}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.backBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+          hitSlop={8}
+        >
+          <Ionicons name="arrow-back" size={18} color={theme.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]}>{r.title}</Text>
-          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-            {totalItems} {r.itemsFound} · tap items to edit
-          </Text>
+          <View style={styles.subtitleRow}>
+            <View style={[styles.statChip, { backgroundColor: theme.accent + '18' }]}>
+              <Ionicons name="list-sharp" size={11} color={theme.accent} />
+              <Text style={[styles.statText, { color: theme.accent }]}>{totalItems} {r.itemsFound}</Text>
+            </View>
+            {hasMultipleStores && (
+              <View style={[styles.statChip, { backgroundColor: theme.surfaceAlt }]}>
+                <Ionicons name="storefront-sharp" size={11} color={theme.textMuted} />
+                <Text style={[styles.statText, { color: theme.textMuted }]}>{totalStores} stores</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
+      <View style={[styles.instructionBanner, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
+        <Ionicons name="information-circle-outline" size={14} color={theme.accent} />
+        <Text style={[styles.instructionText, { color: theme.textSub }]}>{r.tapToEdit}</Text>
+      </View>
+    </Animated.View>
+  );
+
+  return (
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.bg }]}>
       <FlatList
         data={stores}
         keyExtractor={(_, i) => i.toString()}
+        ListHeaderComponent={ListHeader}
         contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
-        renderItem={({ item }) => {
-          const storeIdx = stores.indexOf(item);
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item: storeData, index: si }) => {
+          const storeIdx = stores.indexOf(storeData);
           return (
-            <View style={[styles.storeSection, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {item.name && (
-                <View style={[styles.storeHeader, { backgroundColor: item.color }]}>
-                  <Text style={[styles.storeHeaderText, { color: item.textColor }]}>{item.name}</Text>
-                  <Text style={[styles.storeCount, { color: item.textColor }]}>{item.items.length} items</Text>
+            <Animated.View
+              entering={FadeInDown.duration(300).delay(si * 60).springify().damping(18)}
+              layout={Layout.springify().damping(18)}
+              style={[styles.storeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            >
+              {/* Store header */}
+              <LinearGradient
+                colors={[storeData.color, storeData.color + 'BB']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0.6 }}
+                style={styles.storeHeader}
+              >
+                <View style={[styles.storeIconWrap, { backgroundColor: 'rgba(0,0,0,0.2)' }]}>
+                  <Ionicons name="storefront-sharp" size={14} color={storeData.textColor} />
                 </View>
-              )}
-              {item.items.map((product) => (
+                <Text style={[styles.storeHeaderText, { color: storeData.textColor }]}>
+                  {storeData.name || r.items || 'Store'}
+                </Text>
+                <View style={[styles.storeCountBadge, { backgroundColor: 'rgba(0,0,0,0.22)' }]}>
+                  <Text style={[styles.storeCountText, { color: storeData.textColor }]}>
+                    {storeData.items.length} {r.items}
+                  </Text>
+                </View>
+              </LinearGradient>
+
+              {/* Items */}
+              {storeData.items.map((product, idx) => (
                 <EditableItem
                   key={product.id}
                   item={product}
@@ -186,95 +267,169 @@ export default function ReviewScreen({ navigation, route }) {
                   onUpdate={updateItem}
                   onRemove={removeItem}
                   theme={theme}
+                  index={idx}
                 />
               ))}
-            </View>
+            </Animated.View>
           );
         }}
       />
 
-      {/* Confirm footer */}
-      <View style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>
+      {/* ── Confirm footer ── */}
+      <Animated.View
+        entering={FadeInDown.duration(350).delay(200).springify().damping(20)}
+        style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}
+      >
+        <View style={styles.footerSummary}>
+          <View style={[styles.footerStat, { backgroundColor: theme.surfaceAlt }]}>
+            <Ionicons name="cart-sharp" size={14} color={theme.accent} />
+            <Text style={[styles.footerStatText, { color: theme.textSub }]}>
+              <Text style={{ color: theme.text, fontWeight: '800' }}>{totalItems}</Text> items
+            </Text>
+          </View>
+          <View style={[styles.footerStat, { backgroundColor: theme.surfaceAlt }]}>
+            <Ionicons name="storefront-sharp" size={14} color={theme.accent} />
+            <Text style={[styles.footerStatText, { color: theme.textSub }]}>
+              <Text style={{ color: theme.text, fontWeight: '800' }}>{totalStores}</Text> {totalStores === 1 ? 'store' : 'stores'}
+            </Text>
+          </View>
+        </View>
+
         <TouchableOpacity
           onPress={handleConfirm}
           disabled={totalItems === 0}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
+          style={styles.confirmOuter}
         >
-          {totalItems === 0 ? (
-            <View style={[styles.confirmBtn, { backgroundColor: theme.border }]}>
-              <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" />
-              <Text style={styles.confirmText}>{r.confirm}</Text>
+          <LinearGradient
+            colors={totalItems === 0
+              ? [theme.border, theme.border]
+              : [theme.accent, theme.accentDark]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.confirmBtn}
+          >
+            <View style={styles.confirmIconWrap}>
+              <Ionicons
+                name={totalItems === 0 ? 'close-circle-outline' : 'checkmark-done-sharp'}
+                size={20} color="#FFF"
+              />
             </View>
-          ) : (
-            <LinearGradient
-              colors={[theme.accent, theme.accent + 'DD']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.confirmBtn}
-            >
-              <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" />
-              <Text style={styles.confirmText}>{r.confirm}</Text>
-            </LinearGradient>
-          )}
+            <Text style={styles.confirmText}>{r.confirm}</Text>
+            {totalItems > 0 && (
+              <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.55)" />
+            )}
+          </LinearGradient>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1,
   },
-  backBtn: { padding: 4 },
-  title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  subtitle: { fontSize: 13, marginTop: 1 },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 11, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  title: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
+  subtitleRow: { flexDirection: 'row', gap: 6, marginTop: 5 },
+  statChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  statText: { fontSize: 11, fontWeight: '700' },
+
+  instructionBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    marginHorizontal: 16, marginTop: 10, marginBottom: 4,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+  },
+  instructionText: { fontSize: 12, flex: 1 },
 
   list: { padding: 16, gap: 12 },
 
-  storeSection: { borderRadius: 18, borderWidth: 1, overflow: 'hidden', marginBottom: 4 },
+  storeCard: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
   storeHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 11,
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    paddingHorizontal: 14, paddingVertical: 12,
   },
-  storeHeaderText: { fontSize: 15, fontWeight: '800' },
-  storeCount: { fontSize: 12, opacity: 0.8 },
+  storeIconWrap: {
+    width: 26, height: 26, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  storeHeaderText: { flex: 1, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
+  storeCountBadge: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20,
+  },
+  storeCountText: { fontSize: 11, fontWeight: '700' },
 
   itemRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    paddingHorizontal: 14, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 11,
     borderTopWidth: 1, gap: 10,
   },
-  itemMain: { flex: 1, gap: 8 },
+  itemNum: {
+    width: 24, height: 24, borderRadius: 7,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  itemNumText: { fontSize: 11, fontWeight: '800' },
+  itemMain: { flex: 1, gap: 7 },
 
-  itemName: { fontSize: 15, fontWeight: '600' },
-  editHint: { fontSize: 10, marginTop: 1 },
+  nameBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  itemName: { fontSize: 14, fontWeight: '600', flex: 1 },
+  editBadge: {
+    width: 18, height: 18, borderRadius: 5,
+    alignItems: 'center', justifyContent: 'center',
+  },
   nameInput: {
-    fontSize: 15, fontWeight: '600',
-    borderBottomWidth: 1.5, paddingVertical: 2, paddingHorizontal: 0,
+    fontSize: 14, fontWeight: '600',
+    borderWidth: 1.5, borderRadius: 9,
+    paddingVertical: 5, paddingHorizontal: 10,
   },
 
-  qtyPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  numInputWrap: {
+  fieldsRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
+  fieldWrap: {
     flexDirection: 'row', alignItems: 'center',
     borderWidth: 1, borderRadius: 9,
-    paddingHorizontal: 8, paddingVertical: 5, gap: 4,
+    paddingHorizontal: 9, paddingVertical: 5, gap: 4, minWidth: 52,
   },
-  numInput: { fontSize: 14, fontWeight: '700', minWidth: 36, padding: 0 },
-  numLabel: { fontSize: 12 },
-  multiply: { fontSize: 14 },
-  total: { fontSize: 14, fontWeight: '800' },
+  fieldWrapWide: { minWidth: 64 },
+  fieldInput: { fontSize: 13, fontWeight: '700', minWidth: 28, padding: 0 },
+  fieldLabel: { fontSize: 11, fontWeight: '700' },
+  multiplySign: { fontSize: 13 },
+  totalBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  totalText: { fontSize: 12, fontWeight: '800' },
 
-  removeBtn: { padding: 4, marginTop: 2 },
+  removeBtn: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 16, paddingBottom: 28, borderTopWidth: 1,
+    padding: 16, paddingBottom: 32, borderTopWidth: 1, gap: 10,
   },
+  footerSummary: { flexDirection: 'row', gap: 8 },
+  footerStat: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, flex: 1, justifyContent: 'center',
+  },
+  footerStatText: { fontSize: 12 },
+  confirmOuter: { borderRadius: 18, overflow: 'hidden' },
   confirmBtn: {
-    borderRadius: 18, height: 56,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    height: 56, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 10, paddingHorizontal: 20,
   },
-  confirmText: { color: '#FFF', fontSize: 17, fontWeight: '800' },
+  confirmIconWrap: {
+    width: 30, height: 30, borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  confirmText: { flex: 1, color: '#FFF', fontSize: 17, fontWeight: '800' },
 });

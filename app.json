@@ -21,7 +21,8 @@
       },
       "package": "com.mealket.app",
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.health.READ_STEPS"
       ],
       "intentFilters": [
         {
@@ -39,6 +40,7 @@
     },
     "plugins": [
       "expo-font",
+      "expo-health-connect",
       [
         "expo-camera",
         {
@@ -49,6 +51,8 @@
         "expo-build-properties",
         {
           "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "minSdkVersion": 26
           }
         }

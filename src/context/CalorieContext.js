@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = '@einkauf_calories';
+const FOODS_KEY = '@einkauf_saved_foods';
 const NINETY = 90 * 24 * 60 * 60 * 1000;
 
 const CalorieContext = createContext(null);
@@ -10,6 +11,7 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 export function CalorieProvider({ children }) {
   const [entries, setEntries] = useState([]);
+  const [savedFoods, setSavedFoods] = useState([]);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((raw) => {
@@ -22,11 +24,33 @@ export function CalorieProvider({ children }) {
         if (fresh.length !== all.length) AsyncStorage.setItem(KEY, JSON.stringify(fresh));
       } catch (_) {}
     });
+    AsyncStorage.getItem(FOODS_KEY).then((raw) => {
+      if (!raw) return;
+      try { setSavedFoods(JSON.parse(raw)); } catch (_) {}
+    });
   }, []);
 
   const persist = useCallback((updated) => {
     setEntries(updated);
     AsyncStorage.setItem(KEY, JSON.stringify(updated)).catch(() => {});
+  }, []);
+
+  const saveFood = useCallback((food) => {
+    if (!food.name) return;
+    setSavedFoods((prev) => {
+      const dupes = prev.filter((f) => f.name.toLowerCase() !== food.name.toLowerCase());
+      const next = [food, ...dupes];
+      AsyncStorage.setItem(FOODS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const removeSavedFood = useCallback((name) => {
+    setSavedFoods((prev) => {
+      const next = prev.filter((f) => f.name.toLowerCase() !== name.toLowerCase());
+      AsyncStorage.setItem(FOODS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
   }, []);
 
   const addEntry = useCallback((entry) => {
@@ -70,6 +94,7 @@ export function CalorieProvider({ children }) {
     <CalorieContext.Provider value={{
       entries, addEntry, removeEntry,
       todayEntries, todayByMeal, entriesByDate,
+      savedFoods, saveFood, removeSavedFood,
     }}>
       {children}
     </CalorieContext.Provider>

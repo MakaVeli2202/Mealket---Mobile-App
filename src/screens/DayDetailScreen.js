@@ -9,15 +9,15 @@ import { useCalories } from '../context/CalorieContext';
 
 // ─── Meal metadata ────────────────────────────────────────────────────────────
 const MEAL_META = {
-  breakfast: { label: 'Breakfast',   labelDe: 'Frühstück',   icon: 'sunny-outline',      color: '#FF9F0A' },
-  lunch:     { label: 'Lunch',       labelDe: 'Mittagessen', icon: 'restaurant-outline', color: '#0A84FF' },
-  dinner:    { label: 'Dinner',      labelDe: 'Abendessen',  icon: 'moon-outline',       color: '#BF5AF2' },
-  snack:     { label: 'Snacks',      labelDe: 'Snacks',      icon: 'apple-outline',      color: '#00C896' },
+  breakfast: { icon: 'sunny-outline',      color: '#FF9F0A' },
+  lunch:     { icon: 'restaurant-outline', color: '#0A84FF' },
+  dinner:    { icon: 'moon-outline',        color: '#BF5AF2' },
+  snack:     { icon: 'apple-outline',      color: '#00C896' },
 };
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 // ─── Circular donut for macros ────────────────────────────────────────────────
-function MacroDonut({ carbs, protein, fat, size = 110, theme }) {
+function MacroDonut({ carbs, protein, fat, size = 110, theme, c }) {
   const total = carbs + protein + fat || 1;
   const cPct = carbs   / total;
   const pPct = protein / total;
@@ -54,7 +54,7 @@ function MacroDonut({ carbs, protein, fat, size = 110, theme }) {
       {/* Center */}
       <View style={{ alignItems: 'center' }}>
         <Text style={{ fontSize: 14, fontWeight: '800', color: theme.text }}>{Math.round(total)}g</Text>
-        <Text style={{ fontSize: 9, color: theme.textMuted, fontWeight: '600' }}>total</Text>
+        <Text style={{ fontSize: 9, color: theme.textMuted, fontWeight: '600' }}>{c.total}</Text>
       </View>
     </View>
   );
@@ -128,9 +128,10 @@ function FoodEntry({ entry, theme, onDelete }) {
 }
 
 // ─── Meal section (no fixed goal — shows actual eaten) ────────────────────────
-function MealSection({ mealKey, entries, theme, language, onDelete, navigation }) {
+function MealSection({ mealKey, entries, theme, tr, onDelete, navigation }) {
   const meta = MEAL_META[mealKey];
-  const label = language === 'de' ? meta.labelDe : meta.label;
+  const label = tr.meals[mealKey];
+  const c = tr.calories;
   const total = entries.reduce((s, e) => s + (e.calories || 0), 0);
 
   // Always show section (even if empty) — user can add to any meal
@@ -155,7 +156,7 @@ function MealSection({ mealKey, entries, theme, language, onDelete, navigation }
 
       {entries.length === 0 ? (
         <Text style={[styles.emptyMeal, { color: theme.textMuted }]}>
-          {language === 'de' ? 'Noch nichts eingetragen' : 'Nothing logged yet'}
+          {c.nothingLogged}
         </Text>
       ) : (
         entries.map((e) => (
@@ -164,11 +165,11 @@ function MealSection({ mealKey, entries, theme, language, onDelete, navigation }
             entry={e}
             theme={theme}
             onDelete={() => Alert.alert(
-              language === 'de' ? 'Eintrag löschen' : 'Remove entry',
-              `"${e.name}" ${language === 'de' ? 'entfernen?' : 'remove?'}`,
+              c.removeTitle,
+              c.removePrompt(e.name),
               [
-                { text: language === 'de' ? 'Abbrechen' : 'Cancel', style: 'cancel' },
-                { text: language === 'de' ? 'Löschen' : 'Remove', style: 'destructive', onPress: () => onDelete(e.id) },
+                { text: c.cancel, style: 'cancel' },
+                { text: c.delete, style: 'destructive', onPress: () => onDelete(e.id) },
               ],
             )}
           />
@@ -180,7 +181,7 @@ function MealSection({ mealKey, entries, theme, language, onDelete, navigation }
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function DayDetailScreen({ navigation }) {
-  const { theme, calorieGoal, language } = useSettings();
+  const { theme, calorieGoal, language, tr } = useSettings();
   const { todayEntries, todayByMeal, removeEntry } = useCalories();
 
   const totalKcal    = useMemo(() => todayEntries.reduce((s, e) => s + (e.calories  || 0), 0), [todayEntries]);
@@ -211,7 +212,7 @@ export default function DayDetailScreen({ navigation }) {
     { weekday: 'long', day: 'numeric', month: 'long' },
   );
 
-  const de = language === 'de';
+  const c = tr.calories;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -221,7 +222,7 @@ export default function DayDetailScreen({ navigation }) {
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>{de ? 'Heute' : 'Today'}</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{c.today}</Text>
           <Text style={[styles.headerSub, { color: theme.textMuted }]}>{todayLabel}</Text>
         </View>
         <View style={{ width: 42 }} />
@@ -236,7 +237,7 @@ export default function DayDetailScreen({ navigation }) {
             <View style={styles.calorieCol}>
               <Text style={[styles.calorieNum, { color: theme.text }]}>{totalKcal}</Text>
               <Text style={[styles.calorieLabel, { color: theme.textMuted }]}>
-                {de ? 'Gegessen' : 'Eaten'}
+                {c.eaten}
               </Text>
             </View>
 
@@ -247,7 +248,7 @@ export default function DayDetailScreen({ navigation }) {
                   {isOver ? totalKcal - calorieGoal : remaining}
                 </Text>
                 <Text style={[styles.ringLabel, { color: theme.textMuted }]}>
-                  {isOver ? (de ? 'über' : 'over') : (de ? 'übrig' : 'left')}
+                  {isOver ? c.over : c.left}
                 </Text>
               </View>
             </View>
@@ -256,7 +257,7 @@ export default function DayDetailScreen({ navigation }) {
             <View style={[styles.calorieCol, { alignItems: 'flex-end' }]}>
               <Text style={[styles.calorieNum, { color: theme.text }]}>{calorieGoal}</Text>
               <Text style={[styles.calorieLabel, { color: theme.textMuted }]}>
-                {de ? 'Ziel' : 'Goal'}
+                {c.goal}
               </Text>
             </View>
           </View>
@@ -272,7 +273,7 @@ export default function DayDetailScreen({ navigation }) {
 
         {/* ── Macros ── */}
         <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
-          {de ? 'MAKRONÄHRSTOFFE' : 'MACROS'}
+          {c.macros}
         </Text>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {/* Donut + stats row */}
@@ -283,26 +284,27 @@ export default function DayDetailScreen({ navigation }) {
               fat={totalFat}
               size={100}
               theme={theme}
+              c={c}
             />
             <View style={styles.macroPctCol}>
               <View style={styles.macroPctRow}>
                 <View style={[styles.macroPctDot, { backgroundColor: theme.carbs }]} />
                 <Text style={[styles.macroPctLabel, { color: theme.textMuted }]}>
-                  {de ? 'Kohlenhydrate' : 'Carbs'}
+                  {c.carbohydrates}
                 </Text>
                 <Text style={[styles.macroPctNum, { color: theme.text }]}>{carbPct}%</Text>
               </View>
               <View style={styles.macroPctRow}>
                 <View style={[styles.macroPctDot, { backgroundColor: theme.protein }]} />
                 <Text style={[styles.macroPctLabel, { color: theme.textMuted }]}>
-                  {de ? 'Eiweiß' : 'Protein'}
+                  {c.protein}
                 </Text>
                 <Text style={[styles.macroPctNum, { color: theme.text }]}>{proteinPct}%</Text>
               </View>
               <View style={styles.macroPctRow}>
                 <View style={[styles.macroPctDot, { backgroundColor: theme.fat }]} />
                 <Text style={[styles.macroPctLabel, { color: theme.textMuted }]}>
-                  {de ? 'Fett' : 'Fat'}
+                  {c.fat}
                 </Text>
                 <Text style={[styles.macroPctNum, { color: theme.text }]}>{fatPct}%</Text>
               </View>
@@ -312,19 +314,19 @@ export default function DayDetailScreen({ navigation }) {
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
           {/* Macro bars with goals */}
-          <MacroPill label={de ? 'Kohlenhydrate' : 'Carbs'}   grams={totalCarbs}   goalG={carbGoal}    color={theme.carbs}   theme={theme} />
-          <MacroPill label={de ? 'Eiweiß' : 'Protein'}        grams={totalProtein} goalG={proteinGoal} color={theme.protein} theme={theme} />
-          <MacroPill label={de ? 'Fett' : 'Fat'}              grams={totalFat}     goalG={fatGoal}     color={theme.fat}     theme={theme} />
+          <MacroPill label={c.carbohydrates} grams={totalCarbs} goalG={carbGoal} color={theme.carbs} theme={theme} />
+          <MacroPill label={c.protein}       grams={totalProtein} goalG={proteinGoal} color={theme.protein} theme={theme} />
+          <MacroPill label={c.fat}           grams={totalFat}     goalG={fatGoal}     color={theme.fat}     theme={theme} />
         </View>
 
         {/* ── Nutrition details ── */}
         <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
-          {de ? 'NÄHRWERTDETAILS' : 'NUTRITION DETAILS'}
+          {c.nutritionDetails}
         </Text>
         <View style={[styles.card, { padding: 0, backgroundColor: theme.surface, borderColor: theme.border }]}>
           <NutritionRow
             icon="flash-outline"
-            label={de ? 'Kalorien' : 'Calories'}
+            label={c.caloriesLabel}
             value={totalKcal}
             unit="kcal"
             color={theme.accent}
@@ -332,7 +334,7 @@ export default function DayDetailScreen({ navigation }) {
           />
           <NutritionRow
             icon="grid-outline"
-            label={de ? 'Kohlenhydrate' : 'Carbohydrates'}
+            label={c.carbohydrates}
             value={`${Math.round(totalCarbs)}`}
             unit="g"
             color={theme.carbs}
@@ -340,7 +342,7 @@ export default function DayDetailScreen({ navigation }) {
           />
           <NutritionRow
             icon="ellipse-outline"
-            label={de ? 'davon Zucker' : 'of which Sugar'}
+            label={c.ofWhichSugar}
             value={`${Math.round(totalSugar)}`}
             unit="g"
             color={theme.sugar}
@@ -348,7 +350,7 @@ export default function DayDetailScreen({ navigation }) {
           />
           <NutritionRow
             icon="fitness-outline"
-            label={de ? 'Eiweiß' : 'Protein'}
+            label={c.protein}
             value={`${Math.round(totalProtein)}`}
             unit="g"
             color={theme.protein}
@@ -356,7 +358,7 @@ export default function DayDetailScreen({ navigation }) {
           />
           <NutritionRow
             icon="water-outline"
-            label={de ? 'Fett' : 'Fat'}
+            label={c.fat}
             value={`${Math.round(totalFat)}`}
             unit="g"
             color={theme.fat}
@@ -367,7 +369,7 @@ export default function DayDetailScreen({ navigation }) {
 
         {/* ── Meals ── */}
         <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
-          {de ? 'MAHLZEITEN' : 'MEALS'}
+          {c.mealsLabel}
         </Text>
         {MEAL_ORDER.map((meal) => (
           <MealSection
@@ -375,7 +377,7 @@ export default function DayDetailScreen({ navigation }) {
             mealKey={meal}
             entries={todayByMeal[meal] || []}
             theme={theme}
-            language={language}
+            tr={tr}
             onDelete={removeEntry}
             navigation={navigation}
           />

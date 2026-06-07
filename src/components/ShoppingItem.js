@@ -1,13 +1,14 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, TextInput, Platform } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle,
-  withSpring, withTiming, withSequence, runOnJS, interpolate, Extrapolation,
+  withSpring, withTiming, withSequence, withDelay,
+  runOnJS, interpolate, interpolateColor, Extrapolation,
+  FadeInDown, FadeIn,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
 
-// Gesture handler only works on native — skip on web to avoid crash
 let Gesture, GestureDetector;
 if (Platform.OS !== 'web') {
   const GH = require('react-native-gesture-handler');
@@ -16,20 +17,20 @@ if (Platform.OS !== 'web') {
 }
 
 const SWIPE_THRESHOLD = 80;
-const SWIPE_MAX = 115;
+const SWIPE_MAX = 120;
 
 export default function ShoppingItem({
-  item, onToggle, onPriceChange, onNotFound, isLastStore, isNotFoundBucket,
+  item, onToggle, onPriceChange, onNotFound, onRestore, isLastStore, isNotFoundBucket, entryIndex = 0,
 }) {
-  const { theme } = useSettings();
-  const { name, quantity, unitPrice, subtotal, checked, notFound, priceFromMemory } = item;
+  const { theme, tr } = useSettings();
+  const { name, quantity, unitPrice, checked, notFound, priceFromMemory } = item;
   const [priceText, setPriceText] = useState(unitPrice > 0 ? unitPrice.toFixed(2) : '');
+  const [nameExpanded, setNameExpanded] = useState(false);
   const inputRef = useRef(null);
 
+  // ── Swipe gesture ──────────────────────────────────────────────────────────
   const translateX = useSharedValue(0);
-  const checkScale = useSharedValue(1);
   const triggered = useSharedValue(false);
-
   const swipeEnabled = !isNotFoundBucket && !checked && !notFound;
 
   const panGesture = Platform.OS !== 'web' ? Gesture.Pan()
@@ -43,228 +44,209 @@ export default function ShoppingItem({
     })
     .onEnd(() => {
       if (triggered.value) {
-        translateX.value = withTiming(0, { duration: 180 });
+        translateX.value = withTiming(0, { duration: 200 });
         runOnJS(onNotFound)();
       } else {
-        translateX.value = withSpring(0, { damping: 18, stiffness: 220 });
+        translateX.value = withSpring(0, { damping: 20, stiffness: 240 });
       }
       triggered.value = false;
     }) : null;
 
+  // ── Checkbox animation ──────────────────────────────────────────────────────
+  const checkScale = useSharedValue(1);
+  const checkRotate = useSharedValue(0);
+
   const handleToggle = () => {
+    // Squish → spring back with tiny rotation
     checkScale.value = withSequence(
-      withTiming(0.8, { duration: 60 }),
-      withSpring(1, { damping: 10, stiffness: 260 })
+      withTiming(0.65, { duration: 60 }),
+      withSpring(1, { damping: 8, stiffness: 300 })
+    );
+    checkRotate.value = withSequence(
+      withTiming(checked ? -8 : 8, { duration: 60 }),
+      withSpring(0, { damping: 10, stiffness: 260 })
     );
     onToggle();
   };
 
+  // ── Animated background (interpolateColor on check/notFound state) ──────────
+  // 0 = normal, 1 = checked, 2 = notFound
+  const bgAnim = useSharedValue(checked ? 1 : notFound ? 2 : 0);
+
+  useEffect(() => {
+    bgAnim.value = withTiming(checked ? 1 : notFound ? 2 : 0, { duration: 280 });
+  }, [checked, notFound]);
+
+  const normal   = theme.surface;
+  const checkedC = theme.dark ? '#0F2A1A' : '#EDFAF4';
+  const nfC      = theme.dark ? '#2D1515' : '#FFF5F5';
+
+  // ── Row slide (swipe) ───────────────────────────────────────────────────────
+  const rowSlideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const checkAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: checkScale.value },
+      { rotate: `${checkRotate.value}deg` },
+    ],
+  }));
+
+  const bgStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(bgAnim.value, [0, 1, 2], [normal, checkedC, nfC]),
+  }));
+
+  const swipeRevealBg = useAnimatedStyle(() => ({
+    backgroundColor: translateX.value >= SWIPE_THRESHOLD ? '#991B1B' : '#DC2626',
+  }));
+
+  const swipeIconStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP);
+    const scale   = interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0.6, 1], Extrapolation.CLAMP);
+    return { opacity, transform: [{ scale }] };
+  });
+
+  // ── Price helpers ───────────────────────────────────────────────────────────
   const handlePriceBlur = () => {
     const val = parseFloat(priceText.replace(',', '.'));
     onPriceChange(isNaN(val) ? 0 : val);
   };
-
   const handlePriceChange = (text) => {
     if (/^[\d]*[.,]?[\d]{0,2}$/.test(text) || text === '') setPriceText(text);
   };
-
   const livePrice = parseFloat(priceText.replace(',', '.')) || unitPrice || 0;
   const liveTotal = quantity * livePrice;
 
-  // Animated styles
-  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-  const checkStyle = useAnimatedStyle(() => {
-    const s = checkScale.value;
-    return {
-      transform: [{ scale: s }],
-      shadowOpacity: interpolate(s, [0.8, 1], [0.15, 0.05], Extrapolation.CLAMP),
-    };
-  });
+  // ── Render ──────────────────────────────────────────────────────────────────
+  const inner = (
+    <Animated.View style={[styles.container, bgStyle, Platform.OS !== 'web' && rowSlideStyle]}>
+      <View style={styles.row}>
 
-  const bgStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP);
-    const scale = interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0.75, 1], Extrapolation.CLAMP);
-    return { opacity, transform: [{ scale }] };
-  });
+        {/* Checkbox */}
+        <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.checkWrap} hitSlop={10}>
+          <Animated.View style={[
+            styles.checkbox,
+            {
+              borderColor: checked ? theme.accentGreen : notFound ? theme.danger : theme.accent,
+              backgroundColor: checked ? theme.accentGreen : notFound ? theme.danger : 'transparent',
+            },
+            checkAnimStyle,
+          ]}>
+            {checked && <Ionicons name="checkmark-sharp" size={14} color="#FFF" />}
+            {notFound && <Ionicons name="close-sharp" size={14} color="#FFF" />}
+            {!checked && !notFound && (
+              <View style={[styles.checkDot, { backgroundColor: theme.accent + '50' }]} />
+            )}
+          </Animated.View>
+        </TouchableOpacity>
 
-  const bgColorStyle = useAnimatedStyle(() => ({
-    backgroundColor: translateX.value >= SWIPE_THRESHOLD ? '#B91C1C' : '#DC2626',
-  }));
+        {/* Qty badge */}
+        {!notFound && (
+          <View style={[
+            styles.qtyBadge,
+            { backgroundColor: checked ? theme.accentGreen + '22' : theme.accent + '18' },
+            checked && { opacity: 0.55 },
+          ]}>
+            <Text style={[styles.qtyText, { color: checked ? theme.accentGreen : theme.accent }]}>
+              {quantity}×
+            </Text>
+          </View>
+        )}
 
-  // Use theme-aware background for the row
-  const rowBg = notFound
-    ? (theme.dark ? '#2D1515' : '#FFF5F5')
-    : checked
-      ? (theme.dark ? '#162516' : '#F0FDF4')
-      : theme.surface;
+        {/* Item name */}
+        <TouchableOpacity
+          onPress={notFound ? undefined : handleToggle}
+          onLongPress={() => setNameExpanded(v => !v)}
+          activeOpacity={notFound ? 1 : 0.7}
+          style={styles.nameWrap}
+          hitSlop={4}
+        >
+          <Text
+            style={[
+              styles.name,
+              { color: theme.text },
+              checked && { color: theme.textMuted, textDecorationLine: 'line-through' },
+              notFound && { color: theme.textMuted, textDecorationLine: 'line-through' },
+            ]}
+            numberOfLines={nameExpanded ? 0 : 1}
+            ellipsizeMode="tail"
+          >
+            {name}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Right side: price or restore */}
+        {notFound ? (
+          onRestore && (
+            <TouchableOpacity
+              onPress={onRestore}
+              style={[styles.restoreBtn, { backgroundColor: theme.accent + '18', borderColor: theme.accent + '60' }]}
+              hitSlop={8}
+            >
+              <Ionicons name="arrow-undo" size={15} color={theme.accent} />
+            </TouchableOpacity>
+          )
+        ) : (
+          <View style={styles.priceArea}>
+            <View style={[
+              styles.priceInputWrap,
+              { borderColor: priceFromMemory && !checked ? theme.accent : theme.border, backgroundColor: theme.surfaceAlt },
+              checked && { opacity: 0.45 },
+              priceFromMemory && !checked && { borderStyle: 'dashed' },
+            ]}>
+              {priceFromMemory && !checked && (
+                <Ionicons name="time" size={10} color={theme.accent} style={{ marginRight: 1 }} />
+              )}
+              <TextInput
+                ref={inputRef}
+                style={[styles.priceInput, { color: theme.text }]}
+                value={priceText}
+                onChangeText={handlePriceChange}
+                onBlur={handlePriceBlur}
+                keyboardType="decimal-pad"
+                placeholder="—"
+                placeholderTextColor={theme.textMuted}
+                editable={!checked}
+                selectTextOnFocus
+              />
+              <Text style={[styles.currency, { color: theme.textMuted }]}>€</Text>
+            </View>
+            {liveTotal > 0 && (
+              <Animated.Text
+                entering={FadeIn.duration(200)}
+                style={[styles.total, { color: checked ? theme.accentGreen : theme.accent }]}
+              >
+                {liveTotal.toFixed(2)} €
+              </Animated.Text>
+            )}
+          </View>
+        )}
+
+        {swipeEnabled && (
+          <Ionicons name="chevron-forward" size={12} color={theme.accent + '60'} />
+        )}
+      </View>
+    </Animated.View>
+  );
 
   return (
-    <View style={styles.swipeContainer}>
-      {/* Red action revealed behind the row */}
-      <Animated.View style={[styles.swipeBg, bgColorStyle]}>
-        <Animated.View style={[styles.swipeBgInner, bgStyle]}>
-          <Ionicons name="arrow-redo" size={20} color="#FFF" />
-          <Text style={styles.swipeBgText}>{isLastStore ? 'Nicht da' : 'Weiter →'}</Text>
+    <Animated.View
+      entering={FadeInDown.duration(280).delay(entryIndex * 30).springify().damping(18)}
+      style={styles.swipeContainer}
+    >
+      {/* Red swipe-reveal layer */}
+      <Animated.View style={[styles.swipeBg, swipeRevealBg]}>
+        <Animated.View style={[styles.swipeBgInner, swipeIconStyle]}>
+          <Ionicons name="arrow-redo" size={18} color="#FFF" />
+          <Text style={styles.swipeBgText}>{isLastStore ? tr.item.notHere : tr.item.next}</Text>
         </Animated.View>
       </Animated.View>
 
-      {Platform.OS !== 'web' && GestureDetector ? (
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.container, { backgroundColor: rowBg }, rowStyle]}>
-
-          {/* Row 1: checkbox + name */}
-          <View style={styles.row1}>
-            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.checkWrap} hitSlop={8}>
-              <Animated.View style={[
-                styles.checkbox,
-                { borderColor: checked ? theme.accentGreen : notFound ? theme.danger : theme.border },
-                checked && { backgroundColor: theme.accentGreen },
-                notFound && { backgroundColor: theme.danger },
-                checkStyle,
-                !checked && !notFound && { shadowColor: theme.accentGreen, shadowOffset: { w: 0, h: 0 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 3 },
-              ]}>
-                {checked ? (
-                  <Ionicons name="checkmark" size={14} color="#FFF" />
-                ) : notFound ? (
-                  <Ionicons name="close" size={14} color="#FFF" />
-                ) : null}
-                {!checked && !notFound && <View style={[styles.checkInner, { backgroundColor: theme.textMuted + '30' }]} />}
-              </Animated.View>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.nameWrap} hitSlop={4}>
-              <Text style={[
-                styles.name,
-                { color: theme.text },
-                checked && { color: theme.textMuted, textDecorationLine: 'line-through' },
-                notFound && { color: theme.textMuted, textDecorationLine: 'line-through' },
-              ]} numberOfLines={2}>
-                {name}
-              </Text>
-            </TouchableOpacity>
-
-            {swipeEnabled && (
-              <Ionicons name="chevron-forward" size={14} color={theme.border} />
-            )}
-          </View>
-
-          {/* Row 2: qty × price input → total */}
-          {!notFound && (
-            <View style={styles.row2}>
-              <View style={[styles.qtyBadge, { backgroundColor: theme.surfaceAlt }]}>
-                <Text style={[styles.qtyText, { color: theme.textSub }, checked && { opacity: 0.4 }]}>
-                  {quantity}×
-                </Text>
-              </View>
-
-              <View style={[
-                styles.priceInputWrap,
-                { borderColor: theme.border, backgroundColor: theme.surfaceAlt },
-                checked && { opacity: 0.4 },
-                priceFromMemory && !checked && { borderColor: theme.accent, borderStyle: 'dashed' },
-              ]}>
-                {priceFromMemory && !checked && (
-                  <Ionicons name="time-outline" size={11} color={theme.accent} style={{ marginRight: 2 }} />
-                )}
-                <TextInput
-                  ref={inputRef}
-                  style={[styles.priceInput, { color: theme.text }]}
-                  value={priceText}
-                  onChangeText={handlePriceChange}
-                  onBlur={handlePriceBlur}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor={theme.textMuted}
-                  editable={!checked}
-                  selectTextOnFocus
-                />
-                <Text style={[styles.currency, { color: theme.textMuted }, checked && { opacity: 0.4 }]}>€</Text>
-              </View>
-
-              {liveTotal > 0 ? (
-                <Text style={[styles.total, { color: checked ? theme.accentGreen : theme.accent }]}>
-                  - {liveTotal.toFixed(2)} €
-                </Text>
-              ) : !checked ? (
-                <TouchableOpacity
-                  onPress={() => inputRef.current?.focus()}
-                  style={styles.addPriceHint}
-                  hitSlop={8}
-                >
-                  <Ionicons name="pricetag-outline" size={13} color={theme.textMuted} />
-                  <Text style={[styles.addPriceText, { color: theme.textMuted }]}>Preis</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          )}
-
-          {/* Not-found status pill */}
-          {notFound && (
-            <View style={styles.notFoundLabel}>
-              <Ionicons name="arrow-redo-outline" size={13} color={theme.danger} />
-              <Text style={[styles.notFoundText, { color: theme.danger }]}>
-                {isLastStore ? 'Nicht gefunden' : 'Weitergeleitet →'}
-              </Text>
-            </View>
-          )}
-
-          </Animated.View>
-        </GestureDetector>
-      ) : (
-        <Animated.View style={[styles.container, { backgroundColor: rowBg }]}>
-          {/* Row 1: checkbox + name */}
-          <View style={styles.row1}>
-            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.checkWrap} hitSlop={8}>
-              <Animated.View style={[
-                styles.checkbox,
-                { borderColor: checked ? theme.accentGreen : notFound ? theme.danger : theme.border },
-                checked && { backgroundColor: theme.accentGreen },
-                notFound && { backgroundColor: theme.danger },
-                checkStyle,
-                !checked && !notFound && { shadowColor: theme.accentGreen, shadowOffset: { w: 0, h: 0 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 3 },
-              ]}>
-                {checked ? (
-                  <Ionicons name="checkmark" size={14} color="#FFF" />
-                ) : notFound ? (
-                  <Ionicons name="close" size={14} color="#FFF" />
-                ) : null}
-              </Animated.View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleToggle} activeOpacity={0.7} style={styles.nameWrap}>
-              <Text style={[styles.name, { color: theme.text }, checked && { color: theme.textMuted, textDecorationLine: 'line-through' }]} numberOfLines={2}>
-                {name}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          {!notFound && (
-            <View style={styles.row2}>
-              <View style={[styles.qtyBadge, { backgroundColor: theme.surfaceAlt }]}>
-                <Text style={[styles.qtyText, { color: theme.textSub }]}>{quantity}×</Text>
-              </View>
-              <View style={[styles.priceInputWrap, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
-                <TextInput
-                  ref={inputRef}
-                  style={[styles.priceInput, { color: theme.text }]}
-                  value={priceText}
-                  onChangeText={handlePriceChange}
-                  onBlur={handlePriceBlur}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor={theme.textMuted}
-                  selectTextOnFocus
-                />
-                <Text style={[styles.currency, { color: theme.textMuted }]}>€</Text>
-              </View>
-              {liveTotal > 0 && (
-                <Text style={[styles.total, { color: checked ? theme.accentGreen : theme.accent }]}>
-                  - {liveTotal.toFixed(2)} €
-                </Text>
-              )}
-            </View>
-          )}
-        </Animated.View>
-      )}
-    </View>
+      {Platform.OS !== 'web' && GestureDetector
+        ? <GestureDetector gesture={panGesture}>{inner}</GestureDetector>
+        : inner}
+    </Animated.View>
   );
 }
 
@@ -273,47 +255,43 @@ const styles = StyleSheet.create({
 
   swipeBg: {
     position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', paddingLeft: 22,
+    flexDirection: 'row', alignItems: 'center', paddingLeft: 20,
   },
   swipeBgInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   swipeBgText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
 
-  container: { paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
+  container: { paddingVertical: 10, paddingHorizontal: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  row1: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  checkWrap: { paddingTop: 1 },
+  checkWrap: { flexShrink: 0 },
   checkbox: {
     width: 26, height: 26, borderRadius: 13,
     borderWidth: 2, alignItems: 'center', justifyContent: 'center',
   },
-  checkInner: {
-    width: 8, height: 8, borderRadius: 4,
-    position: 'absolute', opacity: 0.4,
-  },
-  nameWrap: { flex: 1 },
-  name: { fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  checkDot: { width: 8, height: 8, borderRadius: 4 },
 
-  row2: { flexDirection: 'row', alignItems: 'center', paddingLeft: 36, gap: 10 },
   qtyBadge: {
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-    minWidth: 34, alignItems: 'center',
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+    minWidth: 32, alignItems: 'center', flexShrink: 0,
   },
-  qtyText: { fontSize: 13, fontWeight: '700' },
+  qtyText: { fontSize: 12, fontWeight: '800' },
 
+  nameWrap: { flex: 1, minWidth: 0 },
+  name: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
+
+  priceArea: { flexShrink: 0, alignItems: 'flex-end', gap: 2 },
   priceInputWrap: {
     flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 5,
-    gap: 3, minWidth: 86,
+    borderWidth: 1.5, borderRadius: 9,
+    paddingHorizontal: 7, paddingVertical: 3,
+    gap: 2, minWidth: 68,
   },
-  priceInput: { fontSize: 15, fontWeight: '700', minWidth: 52, padding: 0 },
-  currency: { fontSize: 13 },
+  priceInput: { fontSize: 13, fontWeight: '700', minWidth: 38, padding: 0 },
+  currency: { fontSize: 12 },
+  total: { fontSize: 12, fontWeight: '800', textAlign: 'right' },
 
-  total: { fontSize: 14, fontWeight: '800', marginLeft: 2 },
-
-  addPriceHint: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, minHeight: 44 },
-  addPriceText: { fontSize: 12 },
-
-  notFoundLabel: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 36 },
-  notFoundText: { fontSize: 12, fontWeight: '600' },
+  restoreBtn: {
+    width: 32, height: 32, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

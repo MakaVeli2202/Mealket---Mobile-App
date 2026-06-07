@@ -10,7 +10,7 @@ import { useSettings } from '../context/SettingsContext';
 export default function SettingsScreen({ navigation }) {
   const {
     theme, tr, isDark, toggleDark, language, setLanguage,
-    calorieGoal, setCalorieGoal,
+    calorieGoal, setCalorieGoal, geminiKey, setGeminiKey,
   } = useSettings();
   const s = tr.settings;
 
@@ -70,7 +70,7 @@ export default function SettingsScreen({ navigation }) {
           <Text style={[styles.section, { color: theme.textMuted }]}>{s.language}</Text>
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <LangOption
-              label="English"
+              label={s.english}
               flag="🇬🇧"
               selected={language === 'en'}
               onPress={() => setLanguage('en')}
@@ -78,7 +78,7 @@ export default function SettingsScreen({ navigation }) {
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <LangOption
-              label="Deutsch"
+              label={s.german}
               flag="🇦🇹"
               selected={language === 'de'}
               onPress={() => setLanguage('de')}
@@ -114,7 +114,7 @@ export default function SettingsScreen({ navigation }) {
           </View>
 
           {/* Gemini API Key */}
-          <Text style={[styles.section, { color: theme.textMuted }]}>Gemini API</Text>
+          <Text style={[styles.section, { color: theme.textMuted }]}>{s.geminiKey}</Text>
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.geminiBlock}>
               <View style={styles.geminiLabelRow}>

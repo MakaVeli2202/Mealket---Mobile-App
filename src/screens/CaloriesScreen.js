@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
-import { getTodaySteps, stepsToKcal } from '../utils/healthConnect';
+import { requestStepsPermission, getTodaySteps, stepsToKcal } from '../utils/healthConnect';
 
 // ─── Week number (ISO 8601) ───────────────────────────────────────────────────
 function getWeekNumber(d) {
@@ -21,7 +21,7 @@ function getWeekNumber(d) {
 }
 
 // ─── Circular calorie ring (no SVG) ──────────────────────────────────────────
-function CalorieRing({ eaten, goal, color, size = 140, theme }) {
+function CalorieRing({ eaten, goal, color, size = 140, theme, tr }) {
   const pct = goal > 0 ? Math.min(eaten / goal, 1) : 0;
   const remaining = Math.max(goal - eaten, 0);
   const BORDER = 11;
@@ -68,7 +68,7 @@ function CalorieRing({ eaten, goal, color, size = 140, theme }) {
           {isOver ? eaten - goal : remaining}
         </Text>
         <Text style={{ fontSize: 11, color: centerSubColor, fontWeight: '600' }}>
-          {isOver ? 'über' : 'übrig'}
+          {isOver ? tr.calories.over : tr.calories.left}
         </Text>
       </View>
     </View>
@@ -95,13 +95,13 @@ function MacroBar({ label, eaten, goal, color, theme }) {
 
 // ─── Meal row ─────────────────────────────────────────────────────────────────
 const MEAL_CONFIG = [
-  { key: 'breakfast', label: 'Frühstück',   icon: 'sunny-outline',      iconColor: '#FF9F0A' },
-  { key: 'lunch',     label: 'Mittagessen', icon: 'restaurant-outline', iconColor: '#0A84FF' },
-  { key: 'dinner',    label: 'Abendessen',  icon: 'moon-outline',       iconColor: '#BF5AF2' },
-  { key: 'snack',     label: 'Snacks',      icon: 'apple-outline',      iconColor: '#00C896' },
+  { key: 'breakfast', label: 'breakfast', icon: 'sunny-outline',      iconColor: '#FF9F0A' },
+  { key: 'lunch',     label: 'lunch',     icon: 'restaurant-outline', iconColor: '#0A84FF' },
+  { key: 'dinner',    label: 'dinner',    icon: 'moon-outline',       iconColor: '#BF5AF2' },
+  { key: 'snack',     label: 'snack',     icon: 'apple-outline',      iconColor: '#00C896' },
 ];
 
-function MealRow({ config, entries, theme, navigation }) {
+function MealRow({ config, entries, theme, navigation, tr }) {
   const totalKcal = entries.reduce((s, e) => s + (e.calories || 0), 0);
   const bgColor = config.iconColor + '22';
 
@@ -120,7 +120,7 @@ function MealRow({ config, entries, theme, navigation }) {
       {/* Name + arrow */}
       <View style={styles.mealRowCenter}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={[styles.mealName, { color: theme.text }]}>{config.label}</Text>
+          <Text style={[styles.mealName, { color: theme.text }]}>{tr.meals[config.label]}</Text>
           <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
         </View>
         <Text style={[styles.mealKcalSub, { color: theme.textMuted }]}>
@@ -143,7 +143,7 @@ function MealRow({ config, entries, theme, navigation }) {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function CaloriesScreen({ navigation }) {
-  const { theme, calorieGoal } = useSettings();
+  const { theme, calorieGoal, tr } = useSettings();
   const { todayEntries, todayByMeal } = useCalories();
 
   const weekNum = getWeekNumber(new Date());
@@ -155,7 +155,11 @@ export default function CaloriesScreen({ navigation }) {
 
   const [activity, setActivity] = useState(0);
   useEffect(() => {
-    getTodaySteps().then((s) => { if (s > 0) setActivity(stepsToKcal(s)); });
+    (async () => {
+      await requestStepsPermission();
+      const s = await getTodaySteps();
+      if (s > 0) setActivity(stepsToKcal(s));
+    })();
   }, []);
 
   // Macro goals (rough standard split)
@@ -175,8 +179,8 @@ export default function CaloriesScreen({ navigation }) {
           {/* ── TOP HEADER ── */}
           <View style={styles.topHeader}>
             <View>
-              <Text style={[styles.topTitle, { color: theme.text }]}>Heute</Text>
-              <Text style={[styles.topSubtitle, { color: theme.textMuted }]}>Woche {weekNum}</Text>
+              <Text style={[styles.topTitle, { color: theme.text }]}>{tr.calories.today}</Text>
+              <Text style={[styles.topSubtitle, { color: theme.textMuted }]}>{tr.calories.week(weekNum)}</Text>
             </View>
             {/* Quick scan buttons */}
             <View style={styles.quickScanRow}>
@@ -187,7 +191,7 @@ export default function CaloriesScreen({ navigation }) {
                 hitSlop={4}
               >
                 <Ionicons name="barcode-outline" size={20} color={theme.accent} />
-                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>Barcode</Text>
+                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>{tr.meals.barcode}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.quickScanBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -196,20 +200,20 @@ export default function CaloriesScreen({ navigation }) {
                 hitSlop={4}
               >
                 <Ionicons name="scan-outline" size={20} color={theme.accent} />
-                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>Label</Text>
+                <Text style={[styles.quickScanLabel, { color: theme.accent }]}>{tr.calories.label}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* ── ÜBERSICHT SECTION ── */}
           <View style={styles.sectionRow}>
-            <Text style={[styles.sectionLabel, { color: theme.text }]}>Übersicht</Text>
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>{tr.calories.overview}</Text>
             <TouchableOpacity
               activeOpacity={0.75}
               hitSlop={8}
               onPress={() => navigation.navigate('CalorieHistory')}
             >
-              <Text style={[styles.sectionLink, { color: theme.accent }]}>Alle →</Text>
+              <Text style={[styles.sectionLink, { color: theme.accent }]}>{tr.calories.all}</Text>
             </TouchableOpacity>
           </View>
 
@@ -230,31 +234,32 @@ export default function CaloriesScreen({ navigation }) {
             {/* Gegessen */}
             <View style={styles.statCol}>
               <Text style={[styles.statNum, { color: theme.text }]}>{totalKcal}</Text>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>Gegessen</Text>
+              <Text style={[styles.statLabel, { color: theme.textMuted }]}>{tr.calories.eaten}</Text>
             </View>
 
             {/* Center ring */}
             <View style={styles.ringWrap}>
-              <CalorieRing
+            <CalorieRing
                 eaten={totalKcal}
                 goal={calorieGoal}
                 color={theme.accent}
                 size={140}
                 theme={theme}
+                tr={tr}
               />
             </View>
 
             {/* Aktivität */}
             <View style={[styles.statCol, { alignItems: 'flex-end' }]}>
               <Text style={[styles.statNum, { color: theme.text }]}>{activity}</Text>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>Aktivität</Text>
+              <Text style={[styles.statLabel, { color: theme.textMuted }]}>{tr.calories.activity}</Text>
             </View>
           </View>
 
           {/* Macro progress bars */}
           <View style={[styles.macroBarsCard, { backgroundColor: theme.surfaceAlt }]}>
             <MacroBar
-              label="Kohlenhydrate"
+              label={tr.calories.carbs}
               eaten={totalCarbs}
               goal={carbGoal}
               color={theme.carbs}
@@ -262,7 +267,7 @@ export default function CaloriesScreen({ navigation }) {
             />
             <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
             <MacroBar
-              label="Eiweiß"
+              label={tr.calories.protein}
               eaten={totalProtein}
               goal={proteinGoal}
               color={theme.protein}
@@ -270,7 +275,7 @@ export default function CaloriesScreen({ navigation }) {
             />
             <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
             <MacroBar
-              label="Fett"
+              label={tr.calories.fat}
               eaten={totalFat}
               goal={fatGoal}
               color={theme.fat}
@@ -282,13 +287,13 @@ export default function CaloriesScreen({ navigation }) {
 
         {/* ── ERNÄHRUNG SECTION ── */}
         <View style={[styles.sectionRow, { marginTop: 24 }]}>
-          <Text style={[styles.sectionLabel, { color: theme.text }]}>Ernährung</Text>
+          <Text style={[styles.sectionLabel, { color: theme.text }]}>{tr.calories.nutrition}</Text>
           <TouchableOpacity
             activeOpacity={0.75}
             hitSlop={8}
             onPress={() => navigation.navigate('CalorieHistory')}
           >
-            <Text style={[styles.sectionLink, { color: theme.accent }]}>Mehr</Text>
+            <Text style={[styles.sectionLink, { color: theme.accent }]}>{tr.calories.more}</Text>
           </TouchableOpacity>
         </View>
 
@@ -301,6 +306,7 @@ export default function CaloriesScreen({ navigation }) {
                 entries={todayByMeal[config.key] || []}
                 theme={theme}
                 navigation={navigation}
+                tr={tr}
               />
               {idx < MEAL_CONFIG.length - 1 && (
                 <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />

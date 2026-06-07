@@ -9,10 +9,10 @@ import { useCalories } from '../context/CalorieContext';
 
 // ─── Meal metadata ────────────────────────────────────────────────────────────
 const MEAL_META = {
-  breakfast: { label: 'Frühstück',   icon: 'sunny-outline',       pct: 0.25, bannerColor: '#FF9F0A' },
-  lunch:     { label: 'Mittagessen', icon: 'restaurant-outline',  pct: 0.35, bannerColor: '#0A84FF' },
-  dinner:    { label: 'Abendessen',  icon: 'moon-outline',        pct: 0.30, bannerColor: '#BF5AF2' },
-  snack:     { label: 'Snacks',      icon: 'apple-outline',       pct: 0.10, bannerColor: '#00C896' },
+  breakfast: { labelKey: 'breakfast', icon: 'sunny-outline',       pct: 0.25, bannerColor: '#FF9F0A' },
+  lunch:     { labelKey: 'lunch',     icon: 'restaurant-outline',  pct: 0.35, bannerColor: '#0A84FF' },
+  dinner:    { labelKey: 'dinner',    icon: 'moon-outline',        pct: 0.30, bannerColor: '#BF5AF2' },
+  snack:     { labelKey: 'snack',     icon: 'apple-outline',       pct: 0.10, bannerColor: '#00C896' },
 };
 
 // ─── Stat card (2x2 grid) ─────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ function StatCard({ label, value, unit, color, theme }) {
 }
 
 // ─── Progress bar row ─────────────────────────────────────────────────────────
-function ProgressRow({ label, eaten, goal, color, theme }) {
+function ProgressRow({ label, eaten, goal, color, theme, unit = 'g' }) {
   const pct = goal > 0 ? Math.min(eaten / goal, 1) : 0;
   const isOver = eaten > goal;
   return (
@@ -35,8 +35,7 @@ function ProgressRow({ label, eaten, goal, color, theme }) {
       <View style={styles.progressLabelRow}>
         <Text style={[styles.progressLabel, { color: theme.text }]}>{label}</Text>
         <Text style={[styles.progressVal, { color: isOver ? theme.danger : theme.textMuted }]}>
-          {Math.round(eaten)} / {Math.round(goal)}
-          {label === 'Kalorien' ? ' kcal' : ' g'}
+          {Math.round(eaten)} / {Math.round(goal)} {unit}
         </Text>
       </View>
       <View style={[styles.progressTrack, { backgroundColor: theme.surfaceAlt }]}>
@@ -80,11 +79,13 @@ function FoodItem({ entry, theme, onDelete }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function MealDetailScreen({ route, navigation }) {
   const { meal } = route.params;
-  const { theme, calorieGoal } = useSettings();
+  const { theme, calorieGoal, tr } = useSettings();
   const { todayByMeal, removeEntry } = useCalories();
 
   const meta    = MEAL_META[meal] || MEAL_META.snack;
   const entries = todayByMeal[meal] || [];
+  const mLabel = tr.meals[meta.labelKey];
+  const c = tr.calories;
 
   // Totals
   const totalKcal    = entries.reduce((s, e) => s + (e.calories  || 0), 0);
@@ -100,11 +101,11 @@ export default function MealDetailScreen({ route, navigation }) {
 
   const confirmDelete = (entry) => {
     Alert.alert(
-      'Eintrag löschen',
-      `"${entry.name}" entfernen?`,
+      c.removeTitle,
+      c.removePrompt(entry.name),
       [
-        { text: 'Abbrechen', style: 'cancel' },
-        { text: 'Löschen', style: 'destructive', onPress: () => removeEntry(entry.id) },
+        { text: c.cancel, style: 'cancel' },
+        { text: c.delete, style: 'destructive', onPress: () => removeEntry(entry.id) },
       ],
     );
   };
@@ -122,7 +123,7 @@ export default function MealDetailScreen({ route, navigation }) {
           <Ionicons name="chevron-back" size={24} color={theme.text} />
         </TouchableOpacity>
 
-        <Text style={[styles.headerTitle, { color: theme.text }]}>{meta.label}</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>{mLabel}</Text>
 
         <TouchableOpacity activeOpacity={0.75} hitSlop={8} style={styles.headerBtn} onPress={() => navigation.navigate('AddFood', { meal })}>
           <Ionicons name="create-outline" size={22} color={theme.textMuted} />
@@ -136,35 +137,35 @@ export default function MealDetailScreen({ route, navigation }) {
           <View style={[styles.bannerIconCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
             <Ionicons name={meta.icon} size={48} color="#FFF" />
           </View>
-          <Text style={styles.bannerTitle}>{meta.label}</Text>
-          <Text style={styles.bannerSub}>{totalKcal} kcal • {entries.length} Einträge</Text>
+          <Text style={styles.bannerTitle}>{mLabel}</Text>
+          <Text style={styles.bannerSub}>{totalKcal} kcal · {tr.meals.entries(entries.length)}</Text>
         </View>
 
         {/* ── 2x2 STATS GRID ── */}
         <View style={styles.statsGrid}>
           <StatCard
-            label="Kalorien"
+            label={c.caloriesLabel}
             value={totalKcal}
             unit="kcal"
             color={theme.accent}
             theme={theme}
           />
           <StatCard
-            label="Kohlenhydrate"
+            label={c.carbohydrates}
             value={Math.round(totalCarbs)}
             unit="g"
             color={theme.carbs}
             theme={theme}
           />
           <StatCard
-            label="Eiweiß"
+            label={c.protein}
             value={Math.round(totalProtein)}
             unit="g"
             color={theme.protein}
             theme={theme}
           />
           <StatCard
-            label="Fett"
+            label={c.fat}
             value={Math.round(totalFat)}
             unit="g"
             color={theme.fat}
@@ -174,30 +175,31 @@ export default function MealDetailScreen({ route, navigation }) {
 
         {/* ── PROGRESS BARS ── */}
         <View style={[styles.progressCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Ziele</Text>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>{tr.meals.goals}</Text>
           <ProgressRow
-            label="Kalorien"
+            label={c.caloriesLabel}
             eaten={totalKcal}
             goal={kcalGoal}
             color={theme.accent}
             theme={theme}
+            unit="kcal"
           />
           <ProgressRow
-            label="Kohlenhydrate"
+            label={c.carbohydrates}
             eaten={totalCarbs}
             goal={carbGoal}
             color={theme.carbs}
             theme={theme}
           />
           <ProgressRow
-            label="Eiweiß"
+            label={c.protein}
             eaten={totalProtein}
             goal={protGoal}
             color={theme.protein}
             theme={theme}
           />
           <ProgressRow
-            label="Fett"
+            label={c.fat}
             eaten={totalFat}
             goal={fatGoal}
             color={theme.fat}
@@ -207,13 +209,13 @@ export default function MealDetailScreen({ route, navigation }) {
 
         {/* ── FOOD ITEMS LIST ── */}
         <View style={[styles.foodListCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Lebensmittel</Text>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>{tr.meals.foodItems}</Text>
 
           {entries.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Ionicons name="nutrition-outline" size={36} color={theme.textMuted} />
               <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                Noch keine Einträge
+                {tr.meals.noEntriesYet}
               </Text>
             </View>
           ) : (
@@ -237,7 +239,7 @@ export default function MealDetailScreen({ route, navigation }) {
           onPress={() => navigation.navigate('AddFood', { meal })}
         >
           <Ionicons name="add" size={22} color="#FFF" />
-          <Text style={styles.addMoreLabel}>Mehr hinzufügen</Text>
+          <Text style={styles.addMoreLabel}>{tr.meals.moreAdd}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

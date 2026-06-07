@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
 
 export default function PriceSummary({ stores }) {
@@ -9,25 +10,27 @@ export default function PriceSummary({ stores }) {
   const p = tr.price;
 
   const grandTotal = stores.reduce((sum, s) => Math.round((sum + s.subtotal) * 100) / 100, 0);
-  const checkedTotal = stores.reduce((sum, s) =>
-    Math.round((sum + s.items
-      .filter((i) => i.checked)
-      .reduce((a, i) => Math.round((a + i.subtotal) * 100) / 100, 0)
-    ) * 100) / 100, 0
+  const fullTotal  = stores.reduce((sum, s) =>
+    Math.round((sum + s.items.reduce((a, i) => Math.round((a + i.subtotal) * 100) / 100, 0)) * 100) / 100, 0
   );
-  const remaining = Math.round((grandTotal - checkedTotal) * 100) / 100;
+  const remaining = Math.round((fullTotal - grandTotal) * 100) / 100;
 
   return (
-    <View style={[styles.wrap, theme.shadow.md]}>
+    <Animated.View
+      entering={FadeInUp.duration(300).delay(200).springify().damping(18)}
+      style={[styles.wrap, theme.shadow.md]}
+    >
       <LinearGradient
-        colors={theme.dark ? ['#1A1A1A', '#1A1A1A'] : ['#FFFFFF', '#F8F8FA']}
+        colors={theme.dark ? [theme.surface, theme.surfaceAlt] : ['#FFFFFF', theme.bg]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={[styles.container, { borderColor: theme.border }]}
       >
-        {/* ── Header: Price Summary ── */}
+        {/* Header */}
         <View style={styles.headerRow}>
-          <Ionicons name="receipt-outline" size={18} color={theme.textMuted} />
+          <View style={[styles.iconBadge, { backgroundColor: theme.accent + '22' }]}>
+            <Ionicons name="receipt" size={16} color={theme.accent} />
+          </View>
           <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>{p.section}</Text>
         </View>
 
@@ -35,66 +38,60 @@ export default function PriceSummary({ stores }) {
         {stores.map((store, i) => (
           store.items.length > 0 && (
             <View key={i} style={styles.row}>
-              <View style={[styles.dot, { backgroundColor: store.color }]} />
+              <View style={[styles.storeIconWrap, { backgroundColor: store.color + '22' }]}>
+                <View style={[styles.dot, { backgroundColor: store.color }]} />
+              </View>
               <Text style={[styles.label, { color: theme.textSub }]}>{store.name || 'Sonstiges'}</Text>
-              <Text style={[styles.amount, { color: theme.text }]}>
-                {store.subtotal > 0 ? `- ${store.subtotal.toFixed(2)} €` : '—'}
+              <Text style={[styles.amount, { color: store.subtotal > 0 ? theme.text : theme.textMuted }]}>
+                {store.subtotal > 0 ? `${store.subtotal.toFixed(2)} €` : '—'}
               </Text>
             </View>
           )
         ))}
 
-        {/* Checked subtotal */}
-        {checkedTotal > 0 && (
-          <>
-            <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <View style={styles.row}>
-              <View style={[styles.dot, { backgroundColor: theme.accentGreen }]} />
-              <Text style={[styles.subLabel, { color: theme.textMuted }]}>{p.done}</Text>
-              <Text style={[styles.subAmount, { color: theme.accentGreen }]}>- {checkedTotal.toFixed(2)} €</Text>
+        {/* Remaining open items */}
+        {remaining > 0 && (
+          <View style={styles.row}>
+            <View style={[styles.storeIconWrap, { backgroundColor: theme.textMuted + '18' }]}>
+              <Ionicons name="ellipsis-horizontal" size={10} color={theme.textMuted} />
             </View>
-          </>
+            <Text style={[styles.label, { color: theme.textMuted, fontStyle: 'italic' }]}>
+              {typeof p.remaining === 'function' ? p.remaining(remaining.toFixed(2)) : `${remaining.toFixed(2)} € noch offen`}
+            </Text>
+          </View>
         )}
 
-        {/* Grand total */}
-        <View style={[styles.totalRow, { borderTopColor: theme.border }]}>
+        {/* Grand total (checked items) */}
+        <View style={[styles.totalRow, { borderTopColor: theme.border, backgroundColor: theme.accent + '0C' }]}>
+          <View style={[styles.totalIconWrap, { backgroundColor: theme.accent + '25' }]}>
+            <Ionicons name="wallet" size={18} color={theme.accent} />
+          </View>
           <Text style={[styles.totalLabel, { color: theme.text }]}>{p.total}</Text>
           <Text style={[styles.totalAmount, { color: theme.accent }]}>
-            {grandTotal > 0 ? `- ${grandTotal.toFixed(2)} €` : '—'}
+            {grandTotal > 0 ? `${grandTotal.toFixed(2)} €` : '—'}
           </Text>
         </View>
-
-        {/* Remaining */}
-        {grandTotal > 0 && remaining > 0 && remaining < grandTotal && (
-          <Text style={[styles.remaining, { color: theme.textMuted }]}>
-            {typeof p.remaining === 'function' ? p.remaining(remaining.toFixed(2)) : `${remaining.toFixed(2)} €`}
-          </Text>
-        )}
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { margin: 16 },
-  container: { padding: 18, borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  sectionTitle: {
-    fontSize: 11, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.8,
-  },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  label: { flex: 1, fontSize: 15 },
-  amount: { fontSize: 15, fontWeight: '600' },
-  divider: { height: 1, marginBottom: 10 },
-  subLabel: { flex: 1, fontSize: 13 },
-  subAmount: { fontSize: 13, fontWeight: '700' },
+  container: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, paddingBottom: 10 },
+  iconBadge: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 16 },
+  storeIconWrap: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  label: { flex: 1, fontSize: 14 },
+  amount: { fontSize: 14, fontWeight: '700' },
   totalRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingTop: 12, marginTop: 6, borderTopWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginTop: 8, padding: 16, borderTopWidth: 1,
   },
-  totalLabel: { flex: 1, fontSize: 17, fontWeight: '800' },
-  totalAmount: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
-  remaining: { fontSize: 12, textAlign: 'right', marginTop: 8 },
+  totalIconWrap: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  totalLabel: { flex: 1, fontSize: 16, fontWeight: '800' },
+  totalAmount: { fontSize: 24, fontWeight: '900', letterSpacing: -0.8 },
 });
