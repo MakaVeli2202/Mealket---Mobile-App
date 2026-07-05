@@ -9,6 +9,7 @@ const PRICE_RE = /\s+€?(\d+[.,]\d{1,2})$/;
 const FALLBACK_STORE = { label: null, color: '#868E96', textColor: '#FFFFFF' };
 
 function isStoreHeader(line) {
+  if (line == null) return null;
   // @StoreName syntax — always treat as store line
   if (line.startsWith('@')) {
     const name = line.slice(1).trim();
@@ -22,6 +23,7 @@ function isStoreHeader(line) {
 }
 
 function parseLine(raw) {
+  if (raw == null) raw = '';
   let line = raw.trim();
   let quantity = 1;
   let unitPrice = 0;
@@ -63,6 +65,7 @@ function makeListTitle() {
 }
 
 export function parseShoppingText(rawText) {
+  if (rawText == null) rawText = '';
   const lines = rawText.split('\n');
   const stores = [];
   let currentStore = null;

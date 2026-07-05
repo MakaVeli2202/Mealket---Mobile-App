@@ -13,7 +13,7 @@ import Animated, {
 import { useSettings } from '../context/SettingsContext';
 import { useCalories } from '../context/CalorieContext';
 import { useWeight } from '../context/WeightContext';
-import { getTodaySteps, requestStepsPermission } from '../utils/healthConnect';
+import { getTodaySteps, requestStepsPermission, stepsToKcal } from '../utils/healthConnect';
 import GlassCard from '../components/GlassCard';
 import GlassBg from '../components/GlassBg';
 import SpringPressable from '../components/SpringPressable';
@@ -77,11 +77,20 @@ export default function ProfilScreen({ navigation }) {
 
   const [steps,        setSteps]        = useState(null);
   const [stepsGranted, setStepsGranted] = useState(false);
+  const [activity,     setActivity]     = useState(0);
   const [modal,        setModal]        = useState(null);
   const [draft,        setDraft]        = useState('');
 
   React.useEffect(() => {
-    getTodaySteps().then((s) => { if (s > 0) { setSteps(s); setStepsGranted(true); } });
+    (async () => {
+      const granted = await requestStepsPermission();
+      if (granted) {
+        setStepsGranted(true);
+        const s = await getTodaySteps();
+        setSteps(s);
+        if (s > 0) setActivity(stepsToKcal(s));
+      }
+    })();
   }, []);
 
   const openModal = (key, title, currentVal, setter) => {
@@ -98,7 +107,7 @@ export default function ProfilScreen({ navigation }) {
     const granted = await requestStepsPermission();
     if (granted) {
       const s = await getTodaySteps();
-      setSteps(s); setStepsGranted(true);
+      setSteps(s); setStepsGranted(true); setActivity(stepsToKcal(s));
     } else {
       Alert.alert('Samsung Health', 'Open Samsung Health → Settings → Health Connect → Grant Mealket steps access.');
     }
@@ -139,7 +148,7 @@ export default function ProfilScreen({ navigation }) {
             {[
               { icon: 'flame-outline', color: theme.accent, value: todayKcal, label: tr.calories.eaten },
               { icon: 'flash-outline', color: theme.carbs,  value: Math.max(0, calorieGoal - todayKcal), label: `kcal ${tr.calories.left}` },
-              { icon: 'footsteps-outline', color: theme.accentGreen, value: steps !== null ? steps.toLocaleString() : '—', label: stepsGranted ? tr.profil.steps : tr.profil.connectWatch, onPress: stepsGranted ? undefined : handleConnectSteps },
+              { icon: 'footsteps-outline', color: theme.accentGreen, value: steps !== null ? steps.toLocaleString() : '—', label: stepsGranted ? `${tr.profil.steps} · ~${activity} ${tr.calories.kcal}` : tr.profil.connectWatch, onPress: stepsGranted ? undefined : handleConnectSteps },
             ].map((item, i) => (
               <SpringPressable key={i} style={{ flex: 1 }} onPress={item.onPress} scaleDown={0.94}>
                 <GlassCard theme={theme} intensity={50} radius={18} shimmer={false} style={styles.statCard}>

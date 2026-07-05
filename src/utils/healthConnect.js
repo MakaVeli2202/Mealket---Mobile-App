@@ -1,4 +1,4 @@
-import { initialize, requestPermission, readRecords } from 'react-native-health-connect';
+import { initialize, requestPermission, aggregateRecord } from 'react-native-health-connect';
 
 export async function requestStepsPermission() {
   try {
@@ -16,19 +16,25 @@ export async function getTodaySteps() {
     const ok = await initialize();
     if (!ok) return 0;
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const result = await readRecords('Steps', {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    const result = await aggregateRecord({
+      recordType: 'Steps',
       timeRangeFilter: {
         operator: 'between',
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
+        startTime: start,
+        endTime: end,
       },
     });
-    return result.records.reduce((sum, r) => sum + (r.count ?? 0), 0);
+    return Math.round(result.COUNT_TOTAL ?? 0);
   } catch {
     return 0;
   }
+}
+
+export async function getTodayStepsAndCal() {
+  const steps = await getTodaySteps();
+  return { steps, cal: stepsToKcal(steps) };
 }
 
 export function stepsToKcal(steps) {
